@@ -156,8 +156,10 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
     color: timer.color
   }))
 
-  // アクティブなタイマーを取得
-  const activeTimer = customTimers.find(timer => timer.id === activeTimerId) || customTimers[0]
+  // アクティブなタイマーを取得（初期描画時もlocalStorageの値を優先）
+  const savedActiveTimerId = typeof window !== 'undefined' ? localStorage.getItem('activeTimerId') : null;
+  const effectiveActiveId = activeTimerId || savedActiveTimerId || customTimers[0]?.id;
+  const activeTimer = customTimers.find(timer => timer.id === effectiveActiveId) || customTimers[0]
 
   return (
     <div className="space-y-0">
@@ -165,7 +167,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
       <div className="flex items-center justify-between">
         <Tabs 
           tabs={tabs} 
-          activeTab={activeTimerId || customTimers[0]?.id || ''} 
+          activeTab={effectiveActiveId || ''} 
           onTabChange={(tabId) => setActiveTimerId(tabId)}
           onEditTab={(tabId) => {
             const timer = customTimers.find(t => t.id === tabId);

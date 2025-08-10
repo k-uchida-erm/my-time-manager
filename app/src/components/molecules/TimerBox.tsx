@@ -92,22 +92,24 @@ export function TimerBox({
         return;
       }
 
-      if (result?.timer) {
-        // 新しいタイマーのlocalStorageをクリア（クリーンな状態で開始）
-        localStorage.removeItem(`timer_${result.timer.id}`);
-        
-        // 新しいタイマーをリストに追加
-        setCustomTimers(prev => [...prev, result.timer]);
-        setIsModalOpen(false);
-        
-        // 新しく作成したタイマーをアクティブに設定
-        if (onTimerCreated) {
-          onTimerCreated(result.timer.id);
-        }
-        
-        // タイマーリストを再読み込みして同期を確保
-        await loadCustomTimers();
-      } else {
+              if (result?.timer) {
+          // 新しいタイマーのlocalStorageをクリア（クリーンな状態で開始）
+          localStorage.removeItem(`timer_${result.timer.id}`);
+          
+          // 既存タイマーの状態は一切消さない（リセット防止）
+          
+          // 新しいタイマーをリストに追加
+          setCustomTimers(prev => [...prev, result.timer]);
+          setIsModalOpen(false);
+          
+          // 新しく作成したタイマーをアクティブに設定
+          if (onTimerCreated) {
+            onTimerCreated(result.timer.id);
+          }
+          
+          // タイマーリストを再読み込みして同期を確保
+          await loadCustomTimers();
+        } else {
         console.error('Timer created but no timer data returned');
         alert('タイマーの作成に失敗しました：データが返されませんでした');
       }
