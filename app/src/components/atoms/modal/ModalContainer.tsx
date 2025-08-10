@@ -10,7 +10,7 @@ interface ModalContainerProps {
 export function ModalContainer({ children, maxWidth = "max-w-xl", className = "" }: ModalContainerProps) {
   return (
     <div className={`w-full ${maxWidth}`}>
-      <Card className={`p-4 bg-background border border-gray-200 shadow-xl max-h-[90vh] overflow-y-auto modal-scrollbar ${className}`}>
+      <Card className={`p-4 bg-white border border-gray-200 shadow-xl max-h-[90vh] overflow-y-auto modal-scrollbar ${className}`}>
         {children}
       </Card>
     </div>
