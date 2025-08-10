@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: my-time-manager-app
+    # Next.jsプロジェクトが作られるappフォルダを作業場所として指定
+    working_dir: /usr/src/app/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3001:3000"
+    # 開発サーバーを起動するコマンド
+    command: sh -c "npm run dev"
