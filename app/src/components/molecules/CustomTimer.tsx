@@ -8,7 +8,7 @@ import { CustomTimer as CustomTimerType } from './TimerCreationModal';
 
 interface CustomTimerProps {
   timer: CustomTimerType;
-  onComplete?: (duration: number) => void;
+  onComplete?: (payload: { durationSeconds: number; startTimeMs: number; endTimeMs: number }) => void;
   onReset?: () => void;
   isActive?: boolean;
 }
@@ -116,10 +116,21 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
   const prevTimerConfig = useRef<{type: string, workDuration?: number, breakDuration?: number, duration?: number} | null>(null);
   const didInitRefsFromSaved = useRef(false);
   const isRunningRef = useRef<boolean>(isRunning);
+  const onCompleteRef = useRef<typeof onComplete | undefined>(onComplete);
+  const handleCompleteRef = useRef<(() => void) | null>(null);
+  const enableNotificationsRef = useRef<boolean>(!!timer.enableNotifications);
 
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    enableNotificationsRef.current = !!timer.enableNotifications;
+  }, [timer.enableNotifications, timer.id]);
 
   // 初回のみ、保存状態から内部refを初期化
   if (!didInitRefsFromSaved.current && typeof window !== 'undefined') {
@@ -266,7 +277,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
                 
                 // タイムエントリを自動作成
                 if (onComplete) {
-                  onComplete(workDuration);
+                  onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: actualCompletionTime });
                 }
                 
                 // 休憩フェーズに移行（ただし休憩時間も過ぎている可能性があるので停止）
@@ -425,9 +436,17 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
   const handleComplete = useCallback(() => {
     setIsRunning(false);
     
-    const duration = timer.type === 'countdown' 
-      ? durationRef.current 
-      : Math.floor((Date.now() - (startTimeRef.current || 0)) / 1000) + pausedElapsedRef.current;
+    const nowMs = Date.now();
+    let duration = 0;
+    let startMs = nowMs;
+    if (timer.type === 'countdown') {
+      duration = durationRef.current;
+      startMs = nowMs - duration * 1000;
+    } else {
+      const elapsed = Math.floor((nowMs - (startTimeRef.current || 0)) / 1000) + pausedElapsedRef.current;
+      duration = elapsed;
+      startMs = (startTimeRef.current || nowMs) - pausedElapsedRef.current * 1000;
+    }
     
     const note = '';
     
@@ -440,9 +459,22 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     }
     
     saveEvent('complete', note || timer.title);
-    onComplete?.(duration);
+    onComplete?.({ durationSeconds: duration, startTimeMs: startMs, endTimeMs: nowMs });
     handleReset();
   }, [timer.type, timer.title, timer.enableNotifications, onComplete]);
+
+  // ストップウォッチ用の記録確認ハンドラ
+  const handleRecordClick = () => {
+    if (timer.type !== 'stopwatch') return;
+    if (!isRunning && displayTime === 0) return;
+    if (window.confirm('記録しますか？タイマーはリセットされます。')) {
+      handleComplete();
+    }
+  };
+
+  useEffect(() => {
+    handleCompleteRef.current = handleComplete;
+  }, [handleComplete]);
 
   // アニメーションループ
   useEffect(() => {
@@ -483,8 +515,8 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
             const workDuration = Math.floor((workEndTime - workStartTime) / 1000);
             
             // タイムエントリを自動作成
-            if (onComplete) {
-              onComplete(workDuration);
+            if (onComplete && workStartTime) {
+              onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
             }
             
             setPomodoroPhase('break');
@@ -564,23 +596,67 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     };
   }, [isRunning]);
 
-  // ページの可視性変更を監視
+  // ページの可視性変更を監視（handleComplete 定義後に設置）
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && isRunning && startTimeRef.current) {
-        // ページが再表示された時、タイマー表示を更新
+      if (!document.hidden && startTimeRef.current) {
         const now = Date.now();
         const elapsed = Math.floor((now - startTimeRef.current) / 1000) + pausedElapsedRef.current;
-        
+
         if (timer.type === 'countdown') {
           const remaining = Math.max(durationRef.current - elapsed, 0);
           setDisplayTime(remaining);
+          if (isRunning && remaining === 0) {
+            handleCompleteRef.current?.();
+            return;
+          }
         } else if (timer.type === 'stopwatch') {
           setDisplayTime(elapsed);
         } else if (timer.type === 'pomodoro') {
           const phaseDuration = pomodoroPhase === 'work' ? workDurationRef.current : breakDurationRef.current;
           const remaining = Math.max(phaseDuration - elapsed, 0);
           setDisplayTime(remaining);
+
+          if (isRunning && remaining === 0) {
+            if (pomodoroPhase === 'work') {
+              // 作業完了時は自動記録
+              const workStartTime = startTimeRef.current;
+              const workEndTime = now;
+              const workDuration = Math.floor((workEndTime - workStartTime) / 1000);
+
+              if (workStartTime) {
+                onCompleteRef.current?.({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
+              }
+
+              setPomodoroPhase('break');
+              setCompletedPomodoros(prev => prev + 1);
+              pausedElapsedRef.current = 0;
+              startTimeRef.current = now;
+              durationRef.current = breakDurationRef.current;
+              saveEvent('complete', '作業時間完了');
+
+              if (enableNotificationsRef.current) {
+                sendNotification({
+                  title: 'ポモドーロ完了！',
+                  message: '休憩時間を開始しましょう。'
+                });
+              }
+            } else {
+              // 休憩完了
+              setPomodoroPhase('work');
+              pausedElapsedRef.current = 0;
+              startTimeRef.current = now;
+              durationRef.current = workDurationRef.current;
+              saveEvent('complete', '休憩時間完了');
+
+              if (enableNotificationsRef.current) {
+                sendNotification({
+                  title: '休憩完了！',
+                  message: '作業を再開しましょう。'
+                });
+              }
+            }
+          }
         }
       }
     };
@@ -703,14 +779,12 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
             onStart={handleStart}
             onStop={handleStop}
           />
-          <RecordButton
-            onClick={handleComplete}
-            disabled={
-              (timer.type === 'countdown' && !isRunning && displayTime === (timer.duration || 25) * 60) ||
-              (timer.type === 'stopwatch' && !isRunning && displayTime === 0) ||
-              (timer.type === 'pomodoro' && !isRunning && displayTime === (timer.workDuration || 25) * 60)
-            }
-          />
+          {timer.type === 'stopwatch' && (
+            <RecordButton
+              onClick={handleRecordClick}
+              disabled={!isRunning && displayTime === 0}
+            />
+          )}
         </div>
       </div>
     </>

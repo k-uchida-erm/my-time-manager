@@ -12,7 +12,7 @@ export function PlayButton({ isRunning, onStart, onStop, className = "" }: PlayB
   return (
     <IconButton
       onClick={isRunning ? onStop : onStart}
-      variant="primary"
+      variant={isRunning ? 'danger' : 'primary'}
       size="lg"
       className={`hover:scale-110 group transition-all duration-300 ease-out shadow-lg hover:shadow-xl ${className}`}
     >

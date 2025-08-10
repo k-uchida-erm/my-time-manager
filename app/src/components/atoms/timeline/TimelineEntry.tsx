@@ -36,14 +36,16 @@ export function TimelineEntry({
   }
   
   const actualHeight = Math.max(height, minHeight);
+  const color = entry.timer_color || '#3B82F6';
 
   return (
     <div
-      className={`absolute left-12 right-2 rounded-md cursor-pointer transition-all duration-200 hover:opacity-80 group bg-blue-500 ${className}`}
+      className={`absolute left-12 right-2 rounded-md cursor-pointer transition-all duration-200 hover:opacity-80 group ${className}`}
       style={{
         top: `${top}px`,
         height: `${actualHeight}px`,
-        opacity: 0.8
+        opacity: 0.8,
+        backgroundColor: color
       }}
       onClick={(e) => onSelect(entry, e)}
     >

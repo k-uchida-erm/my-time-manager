@@ -77,15 +77,13 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
     }
   }, [activeTimerId]);
 
-  const handleCustomTimerComplete = async (duration: number) => {
+  const handleCustomTimerComplete = async (payload: { durationSeconds: number; startTimeMs: number; endTimeMs: number }) => {
     const formData = new FormData()
     
-    // ストップウォッチの場合は実際の開始時刻を記録
-    const now = Date.now()
-    const startTime = now - (duration * 1000)
+    const { durationSeconds, startTimeMs, endTimeMs } = payload
     
-    formData.append('startTime', String(startTime))
-    formData.append('endTime', String(now))
+    formData.append('startTime', String(startTimeMs))
+    formData.append('endTime', String(endTimeMs))
     formData.append('note', note || activeTimer.title) // メモがない場合はタイマーのタイトルを使用
     formData.append('timerTitle', activeTimer.title) // タイマーのタイトルを保存
     formData.append('timerColor', activeTimer.color) // タイマーの色を保存
@@ -101,9 +99,9 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
 
       const newEntry: TimeEntry = {
         id: Date.now(),
-        start_time: new Date(startTime).toISOString(),
-        end_time: new Date(now).toISOString(),
-        duration_seconds: duration,
+        start_time: new Date(startTimeMs).toISOString(),
+        end_time: new Date(endTimeMs).toISOString(),
+        duration_seconds: durationSeconds,
         note: note || activeTimer.title,
         timer_title: activeTimer.title,
         timer_color: activeTimer.color
