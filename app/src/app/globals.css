@@ -46,58 +46,6 @@ body {
   line-height: 1.6;
 }
 
-/* 基本的な色のクラスを直接定義 - より薄い色に変更 */
-.bg-primary {
-  background-color: #60a5fa;
-}
-
-.bg-accent {
-  background-color: #93c5fd;
-}
-
-.text-primary {
-  color: #60a5fa;
-}
-
-.text-accent {
-  color: #93c5fd;
-}
-
-.text-foreground {
-  color: #171717;
-}
-
-.text-muted-foreground {
-  color: #64748b;
-}
-
-.bg-card {
-  background-color: #ffffff;
-}
-
-.border-border {
-  border-color: #e2e8f0;
-}
-
-/* ダークモード対応 */
-@media (prefers-color-scheme: dark) {
-  .text-foreground {
-    color: #ededed;
-  }
-  
-  .text-muted-foreground {
-    color: #94a3b8;
-  }
-  
-  .bg-card {
-    background-color: #1e293b;
-  }
-  
-  .border-border {
-    border-color: #334155;
-  }
-}
-
 /* スクロールバーのスタイル */
 ::-webkit-scrollbar {
   width: 8px;

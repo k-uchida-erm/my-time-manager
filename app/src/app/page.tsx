@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Button } from '@/components/atoms/Button';
+import { Button } from '@/components/atoms/ui/Button';
 
 export default function HomePage() {
   return (
