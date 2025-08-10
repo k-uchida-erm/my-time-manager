@@ -1,23 +1,30 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { addTimeEntry, deleteCustomTimer } from '@/app/actions'
 import { CustomTimer } from '../molecules/CustomTimer'
 import { CustomTimer as CustomTimerType } from '../molecules/TimerCreationModal'
 import { Tabs, Button } from '../atoms/ui'
 import { LoadingSpinner } from '../atoms/feedback'
 import { TimerEmptyState } from '../molecules/TimerEmptyState'
+import type { TimeEntry } from '@/lib/types'
+
+// CustomTimer コンポーネント用のリセットハンドル
+interface CustomTimerHandle {
+  handleReset: () => void;
+}
 
 type TimerProps = {
   customTimers: CustomTimerType[];
   isLoading: boolean;
   onModalOpen?: () => void;
   onEditTimer?: (timer: CustomTimerType) => void;
-  onNewEntry?: (entry: any) => void;
+  onNewEntry?: (entry: TimeEntry) => void;
 }
 
 export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNewEntry }: TimerProps) {
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  const customTimerRef = useRef<CustomTimerHandle | null>(null)
 
   // 初期化時にアクティブタイマーを設定
   useEffect(() => {
@@ -50,7 +57,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
         
         // 新しい記録をタイムラインに追加
         if (onNewEntry) {
-          const newEntry = {
+          const newEntry: TimeEntry = {
             id: Date.now(), // 仮のID（実際のIDはサーバーから返される）
             start_time: new Date(startTime).toISOString(),
             end_time: new Date(now).toISOString(),
@@ -121,9 +128,10 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
             if (confirm('このタイマーを削除しますか？')) {
               const formData = new FormData();
               formData.append('id', tabId);
-              deleteCustomTimer(formData).then((result: any) => {
-                if (result?.error) {
-                  alert(`タイマーの削除に失敗しました: ${result.error}`);
+              deleteCustomTimer(formData).then((result) => {
+                if ((result as { error?: string }).error) {
+                  const { error } = result as { error?: string };
+                  alert(`タイマーの削除に失敗しました: ${error}`);
                 } else {
                   // タイマーリストを更新
                   window.location.reload(); // 簡単な方法としてリロード
@@ -157,6 +165,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
         {/* アクティブタイマー */}
         <div className="relative">
           <CustomTimer 
+            ref={customTimerRef}
             timer={activeTimer}
             onComplete={handleCustomTimerComplete}
             onReset={() => {
@@ -182,11 +191,8 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
               onClick={() => {
                 // リセット確認
                 if (confirm('タイマーをリセットしますか？')) {
-                  // リセット機能を呼び出す
-                  const customTimerElement = document.querySelector('[data-timer-id]') as any;
-                  if (customTimerElement && customTimerElement.handleReset) {
-                    customTimerElement.handleReset();
-                  }
+                  // CustomTimer 側のハンドルを利用してリセット
+                  customTimerRef.current?.handleReset();
                 }
               }}
               className="w-10 h-10 bg-muted text-muted-foreground rounded-full flex items-center justify-center hover:bg-muted/80 transition-colors"

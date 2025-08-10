@@ -5,12 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '../atoms/ui';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 
 export function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClientComponentClient();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

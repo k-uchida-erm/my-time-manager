@@ -5,10 +5,24 @@ import { TimerCreationModal } from './TimerCreationModal';
 import { CustomTimer as CustomTimerType } from './TimerCreationModal';
 import { getCustomTimers, saveCustomTimer, updateCustomTimer, deleteCustomTimer } from '@/app/actions';
 import { TimerContentTitle } from './TimerContentTitle';
+import { TimeEntry } from '@/lib/types';
 
 interface TimerBoxProps {
-  onNewEntry?: (entry: any) => void;
+  onNewEntry?: (entry: TimeEntry) => void;
 }
+
+// DBのカスタムタイマー行の型
+type DbCustomTimerRow = {
+  id: string;
+  title: string;
+  type: 'countdown' | 'stopwatch' | 'pomodoro';
+  duration: number | null;
+  work_duration: number | null;
+  break_duration: number | null;
+  color: string;
+  has_memo: boolean;
+  enable_notifications?: boolean | null;
+};
 
 export function TimerBox({ onNewEntry }: TimerBoxProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,13 +46,13 @@ export function TimerBox({ onNewEntry }: TimerBoxProps) {
       }
       
       if (result.data) {
-        const timers = result.data.map((timer: any) => ({
+        const timers = result.data.map((timer: DbCustomTimerRow) => ({
           id: timer.id,
           title: timer.title,
           type: timer.type,
-          duration: timer.duration,
-          workDuration: timer.work_duration,
-          breakDuration: timer.break_duration,
+          duration: timer.duration ?? undefined,
+          workDuration: timer.work_duration ?? undefined,
+          breakDuration: timer.break_duration ?? undefined,
           color: timer.color,
           hasMemo: timer.has_memo
         }));

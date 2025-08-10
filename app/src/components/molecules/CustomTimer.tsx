@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Card, Button, IconButton } from '../atoms/ui';
 import { PlayButton, RecordButton } from '../atoms/timer';
 import { saveTimerEvent } from '@/app/actions';
@@ -12,7 +12,11 @@ interface CustomTimerProps {
   onReset?: () => void;
 }
 
-export function CustomTimer({ timer, onComplete, onReset }: CustomTimerProps) {
+export type CustomTimerHandle = {
+  handleReset: () => void;
+};
+
+export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(function CustomTimer({ timer, onComplete, onReset }: CustomTimerProps, ref) {
   // タイマーの種類ごとに基準値を保持
   const getInitialTime = () => {
     if (timer.type === 'countdown') {
@@ -283,6 +287,8 @@ export function CustomTimer({ timer, onComplete, onReset }: CustomTimerProps) {
     onReset?.();
   };
 
+  useImperativeHandle(ref, () => ({ handleReset }));
+
   const handleComplete = () => {
     let duration: number;
     if (timer.type === 'countdown') {
@@ -361,4 +367,4 @@ export function CustomTimer({ timer, onComplete, onReset }: CustomTimerProps) {
       </div>
     </>
   );
-} 
+}); 
