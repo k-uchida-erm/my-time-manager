@@ -22,7 +22,19 @@ export function TimelineEntry({
   onEdit,
   className = ""
 }: TimelineEntryProps) {
-  const minHeight = 15 * zoomLevel;
+  // ズームレベルに応じた最小高さを動的に設定
+  let minHeight;
+  if (zoomLevel >= 5) {
+    // 500%: より小さな最小高さ
+    minHeight = 8;
+  } else if (zoomLevel >= 2.5) {
+    // 250%: 中間の最小高さ
+    minHeight = 12;
+  } else {
+    // 100%: 通常の最小高さ
+    minHeight = 15;
+  }
+  
   const actualHeight = Math.max(height, minHeight);
 
   return (

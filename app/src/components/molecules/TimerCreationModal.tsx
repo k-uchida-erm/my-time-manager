@@ -43,7 +43,7 @@ export function TimerCreationModal({ isOpen, onClose, onSave, onDelete, editingT
   const [breakDuration, setBreakDuration] = useState(5);
   const [color, setColor] = useState('#3b82f6');
   const [hasMemo, setHasMemo] = useState(true);
-  const [enableNotifications, setEnableNotifications] = useState(false);
+  const [enableNotifications, setEnableNotifications] = useState(true);
 
   // 全ての色を利用可能にする（重複許可）
   const availableColors = TIMER_COLORS;
@@ -58,7 +58,7 @@ export function TimerCreationModal({ isOpen, onClose, onSave, onDelete, editingT
       setBreakDuration(editingTimer.breakDuration || 5);
       setColor(editingTimer.color);
       setHasMemo(editingTimer.hasMemo);
-      setEnableNotifications(editingTimer.enableNotifications || false);
+      setEnableNotifications(editingTimer.enableNotifications ?? false); // ?? を使用して明示的にfalseを許可
     } else {
       // 新規作成モードの場合、デフォルト値を設定
       setTitle('');
@@ -68,9 +68,9 @@ export function TimerCreationModal({ isOpen, onClose, onSave, onDelete, editingT
       setBreakDuration(5);
       setColor(availableColors[0]?.value || '#3b82f6');
       setHasMemo(true);
-      setEnableNotifications(false);
+      setEnableNotifications(true); // 新規作成時はデフォルトでtrue
     }
-  }, [editingTimer, isOpen]);
+  }, [editingTimer, isOpen, availableColors]);
 
   const handleFormSubmit = () => {
     const timer: CustomTimer = {

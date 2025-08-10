@@ -141,6 +141,8 @@ export async function saveCustomTimer(formData: FormData) {
   const hasMemo = formData.get('hasMemo') === 'true'
   const enableNotifications = formData.get('enableNotifications') === 'true'
 
+
+
   const supabase = createSupabaseActionClient();
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -161,15 +163,39 @@ export async function saveCustomTimer(formData: FormData) {
     enable_notifications: enableNotifications,
   }
 
-  const { error } = await supabase.from('custom_timers').insert(timer)
 
-  if (error) {
+
+  // データを挿入してタイマー情報を取得
+  const { data, error } = await supabase
+    .from('custom_timers')
+    .insert(timer)
+    .select()
+    .single()
+
+  if (error || !data) {
     console.error('Error inserting custom timer:', error)
     return { error: 'タイマーの保存に失敗しました。' }
   }
 
+
+
   revalidatePath('/')
-  return { success: true }
+  
+  // 作成されたタイマーのデータを返す
+  return { 
+    success: true, 
+    timer: {
+      id: data.id,
+      title: data.title,
+      type: data.type,
+      duration: data.duration,
+      workDuration: data.work_duration,
+      breakDuration: data.break_duration,
+      color: data.color,
+      hasMemo: data.has_memo,
+      enableNotifications: data.enable_notifications
+    }
+  }
 }
 
 // カスタムタイマーを更新するサーバーアクション
@@ -183,6 +209,8 @@ export async function updateCustomTimer(formData: FormData) {
   const color = String(formData.get('color'))
   const hasMemo = formData.get('hasMemo') === 'true'
   const enableNotifications = formData.get('enableNotifications') === 'true'
+
+
 
   const supabase = createSupabaseActionClient();
   const { data: { user } } = await supabase.auth.getUser()
@@ -203,19 +231,41 @@ export async function updateCustomTimer(formData: FormData) {
     enable_notifications: enableNotifications,
   }
 
-  const { error } = await supabase
+
+
+  // データを更新してタイマー情報を取得
+  const { data, error } = await supabase
     .from('custom_timers')
     .update(timer)
     .eq('id', id)
     .eq('user_id', user.id)
+    .select()
+    .single()
 
-  if (error) {
+  if (error || !data) {
     console.error('Error updating custom timer:', error)
     return { error: 'タイマーの更新に失敗しました。' }
   }
 
+
+
   revalidatePath('/')
-  return { success: true }
+  
+  // 更新されたタイマーのデータを返す
+  return { 
+    success: true, 
+    timer: {
+      id: data.id,
+      title: data.title,
+      type: data.type,
+      duration: data.duration,
+      workDuration: data.work_duration,
+      breakDuration: data.break_duration,
+      color: data.color,
+      hasMemo: data.has_memo,
+      enableNotifications: data.enable_notifications
+    }
+  }
 }
 
 // カスタムタイマーを削除するサーバーアクション
@@ -281,7 +331,23 @@ export async function saveTimerEvent(formData: FormData) {
   const elapsedSeconds = Number(formData.get('elapsedSeconds') || 0)
   const note = String(formData.get('note') || '')
 
-  console.log('saveTimerEvent called with:', { timerId, eventType, eventTime, elapsedSeconds, note })
+
+
+  // バリデーション
+  if (!timerId || timerId === 'undefined') {
+    console.error('Invalid timer ID:', timerId)
+    return { error: 'タイマーIDが無効です。' }
+  }
+
+  if (!['start', 'pause', 'resume', 'complete', 'reset', 'pomodoro_complete', 'break_complete'].includes(eventType)) {
+    console.error('Invalid event type:', eventType)
+    return { error: 'イベントタイプが無効です。' }
+  }
+
+  if (!eventTime || isNaN(eventTime)) {
+    console.error('Invalid event time:', eventTime)
+    return { error: 'イベント時刻が無効です。' }
+  }
 
   const supabase = createSupabaseActionClient();
   const { data: { user } } = await supabase.auth.getUser()
@@ -291,7 +357,20 @@ export async function saveTimerEvent(formData: FormData) {
     return { error: '認証されていません。' }
   }
 
-  console.log('User authenticated:', user.id)
+
+
+  // タイマーが存在するか確認
+  const { data: timerExists, error: timerCheckError } = await supabase
+    .from('custom_timers')
+    .select('id')
+    .eq('id', timerId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (timerCheckError || !timerExists) {
+    console.error('Timer not found or access denied:', { timerId, error: timerCheckError })
+    return { error: 'タイマーが見つかりません。' }
+  }
 
   const event = {
     user_id: user.id,
@@ -302,15 +381,22 @@ export async function saveTimerEvent(formData: FormData) {
     note: note || null,
   }
 
-  console.log('Inserting event:', event)
+
 
   const { error } = await supabase.from('timer_events').insert(event)
 
   if (error) {
     console.error('Error inserting timer event:', error)
     console.error('Event data:', event)
+    console.error('Supabase error details:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    })
     return { error: 'イベントの保存に失敗しました。' }
   }
+
 
   return { success: true }
 }

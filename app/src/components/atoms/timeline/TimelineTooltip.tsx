@@ -35,12 +35,12 @@ export function TimelineTooltip({
     transform: 'translateY(-50%)' // 垂直方向の中央揃え
   } : {};
 
-  console.log('TimelineTooltip style:', tooltipStyle);
+
 
   return (
     <div 
       id={id}
-      className={`p-3 bg-card border rounded-lg shadow-lg min-w-48 ${className}`}
+      className={`p-3 bg-white border rounded-lg shadow-lg min-w-48 ${className}`}
       style={tooltipStyle}
     >
       <div className="flex items-start justify-between">

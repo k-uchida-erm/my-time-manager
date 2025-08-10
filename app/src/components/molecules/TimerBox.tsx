@@ -9,6 +9,7 @@ import { TimeEntry } from '@/lib/types';
 
 interface TimerBoxProps {
   onNewEntry?: (entry: TimeEntry) => void;
+  onTimerCreated?: (timerId: string) => void;
 }
 
 // DBのカスタムタイマー行の型
@@ -24,7 +25,10 @@ type DbCustomTimerRow = {
   enable_notifications?: boolean | null;
 };
 
-export function TimerBox({ onNewEntry }: TimerBoxProps) {
+export function TimerBox({ 
+  onNewEntry,
+  onTimerCreated 
+}: TimerBoxProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTimer, setEditingTimer] = useState<CustomTimerType | null>(null);
   const [customTimers, setCustomTimers] = useState<CustomTimerType[]>([]);
@@ -54,7 +58,8 @@ export function TimerBox({ onNewEntry }: TimerBoxProps) {
           workDuration: timer.work_duration ?? undefined,
           breakDuration: timer.break_duration ?? undefined,
           color: timer.color,
-          hasMemo: timer.has_memo
+          hasMemo: timer.has_memo,
+          enableNotifications: timer.enable_notifications ?? false // 通知設定を追加
         }));
 
         setCustomTimers(timers);
@@ -82,13 +87,30 @@ export function TimerBox({ onNewEntry }: TimerBoxProps) {
       const result = await saveCustomTimer(formData);
       
       if (result?.error) {
+        console.error('Timer creation failed:', result.error);
         alert(`タイマーの作成に失敗しました: ${result.error}`);
         return;
       }
 
-      // 新しいタイマーをリストに追加
-      setCustomTimers(prev => [...prev, timer]);
-      setIsModalOpen(false);
+      if (result?.timer) {
+        // 新しいタイマーのlocalStorageをクリア（クリーンな状態で開始）
+        localStorage.removeItem(`timer_${result.timer.id}`);
+        
+        // 新しいタイマーをリストに追加
+        setCustomTimers(prev => [...prev, result.timer]);
+        setIsModalOpen(false);
+        
+        // 新しく作成したタイマーをアクティブに設定
+        if (onTimerCreated) {
+          onTimerCreated(result.timer.id);
+        }
+        
+        // タイマーリストを再読み込みして同期を確保
+        await loadCustomTimers();
+      } else {
+        console.error('Timer created but no timer data returned');
+        alert('タイマーの作成に失敗しました：データが返されませんでした');
+      }
     } catch (error) {
       console.error('Failed to create timer:', error);
       alert('タイマーの作成に失敗しました');
@@ -111,15 +133,25 @@ export function TimerBox({ onNewEntry }: TimerBoxProps) {
       const result = await updateCustomTimer(formData);
       
       if (result?.error) {
+        console.error('Timer update failed:', result.error);
         alert(`タイマーの更新に失敗しました: ${result.error}`);
         return;
       }
 
-      setCustomTimers(prev => 
-        prev.map(t => t.id === timer.id ? timer : t)
-      );
-      setIsModalOpen(false);
-      setEditingTimer(null);
+      if (result?.timer) {
+        // サーバーから返された正しいデータでタイマーを更新
+        setCustomTimers(prev => 
+          prev.map(t => t.id === timer.id ? result.timer : t)
+        );
+        setIsModalOpen(false);
+        setEditingTimer(null);
+        
+        // タイマーリストを再読み込みして同期を確保
+        await loadCustomTimers();
+      } else {
+        console.error('Timer updated but no timer data returned');
+        alert('タイマーの更新に失敗しました：データが返されませんでした');
+      }
     } catch (error) {
       console.error('Failed to update timer:', error);
       alert('タイマーの更新に失敗しました');
@@ -160,6 +192,7 @@ export function TimerBox({ onNewEntry }: TimerBoxProps) {
             setEditingTimer(timer);
             setIsModalOpen(true);
           }}
+          onDeleteTimer={handleDeleteTimer}
           onNewEntry={onNewEntry}
         />
       </div>

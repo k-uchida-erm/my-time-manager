@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { TimeEntry } from '@/lib/types';
 import { Button } from '../atoms/ui';
+import { Input } from '../atoms/form';
 
 interface TimeEntryEditFormProps {
   entry: TimeEntry;
@@ -17,67 +18,51 @@ export function TimeEntryEditForm({
   onCancel, 
   className = "" 
 }: TimeEntryEditFormProps) {
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [note, setNote] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  const [note, setNote] = useState(entry?.note || '');
+  
+  // 開始時間と終了時間を Date オブジェクトから時分秒に分解
+  const startDate = new Date(entry?.start_time || new Date());
+  const endDate = new Date(entry?.end_time || new Date());
+  
+  const [startHours, setStartHours] = useState(startDate.getHours());
+  const [startMinutes, setStartMinutes] = useState(startDate.getMinutes());
+  const [startSeconds, setStartSeconds] = useState(startDate.getSeconds());
+  
+  const [endHours, setEndHours] = useState(endDate.getHours());
+  const [endMinutes, setEndMinutes] = useState(endDate.getMinutes());
+  const [endSeconds, setEndSeconds] = useState(endDate.getSeconds());
 
-  // 初期値を設定
-  useEffect(() => {
-    if (entry) {
-      // ISO文字列からローカル時間に変換
-      const startDate = new Date(entry.start_time);
-      const endDate = new Date(entry.end_time);
-      
-      // input[type="time"]の形式（HH:mm）に変換
-      const formatTimeForInput = (date: Date) => {
-        return date.toTimeString().slice(0, 5); // HH:mm形式
-      };
-      
-      setStartTime(formatTimeForInput(startDate));
-      setEndTime(formatTimeForInput(endDate));
-      setNote(entry.note || '');
-    }
-  }, [entry]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = () => {
+    // 新しい開始時間と終了時間を作成
+    const today = new Date(entry?.start_time || new Date());
     
-    // 時間のバリデーション
-    if (!startTime || !endTime) {
-      alert('開始時間と終了時間を入力してください');
-      return;
-    }
+    const newStartTime = new Date(today);
+    newStartTime.setHours(startHours, startMinutes, startSeconds, 0);
     
-    // 時間文字列をDateオブジェクトに変換
-    const today = new Date();
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
-    
-    // 時間の妥当性チェック
-    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-      alert('正しい時間形式で入力してください');
-      return;
-    }
-    
-    const startDate = new Date(today);
-    startDate.setHours(startHour, startMinute, 0, 0);
-    
-    const endDate = new Date(today);
-    endDate.setHours(endHour, endMinute, 0, 0);
+    const newEndTime = new Date(today);
+    newEndTime.setHours(endHours, endMinutes, endSeconds, 0);
     
     // 開始時間が終了時間より後ではないかチェック
-    if (startDate >= endDate) {
+    if (newStartTime >= newEndTime) {
       alert('開始時間は終了時間より前である必要があります');
+      return;
+    }
+    
+    // 時間差を計算
+    const durationSeconds = Math.floor((newEndTime.getTime() - newStartTime.getTime()) / 1000);
+    
+    if (durationSeconds <= 0) {
+      alert('時間は1秒以上である必要があります');
       return;
     }
 
     const updatedEntry: TimeEntry = {
-      ...entry,
-      start_time: startDate.toISOString(),
-      end_time: endDate.toISOString(),
-      duration_seconds: Math.floor((endDate.getTime() - startDate.getTime()) / 1000),
-      note: note.trim() || null,
+      ...entry!,
+      start_time: newStartTime.toISOString(),
+      end_time: newEndTime.toISOString(),
+      duration_seconds: durationSeconds,
+      note: note.trim(),
       is_edited: true,
       edited_at: new Date().toISOString()
     };
@@ -86,50 +71,109 @@ export function TimeEntryEditForm({
   };
 
   const handleDelete = () => {
-    onDelete(entry.id);
-    setShowDeleteConfirm(false);
+    onDelete(entry!.id);
   };
 
   return (
-    <form onSubmit={handleSubmit} className={`space-y-1 ${className}`}>
-      {/* 時間設定 - 横並びでコンパクトに */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1">
-            開始時間
-          </label>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-            className="w-full p-2 border border-border rounded-lg bg-background text-foreground"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1">
-            終了時間
-          </label>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            required
-            className="w-full p-2 border border-border rounded-lg bg-background text-foreground"
-          />
+    <div className={`space-y-4 ${className}`}>
+      {/* 開始時間編集 */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
+          開始時間
+        </label>
+        <div className="flex items-center gap-1">
+          <div className="flex-1">
+            <Input
+              type="number"
+              value={startHours}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartHours(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
+              placeholder="00"
+              min="0"
+              max="23"
+              className="text-center"
+            />
+          </div>
+          <span className="text-gray-500">:</span>
+          <div className="flex-1">
+            <Input
+              type="number"
+              value={startMinutes}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+              placeholder="00"
+              min="0"
+              max="59"
+              className="text-center"
+            />
+          </div>
+          <span className="text-gray-500">:</span>
+          <div className="flex-1">
+            <Input
+              type="number"
+              value={startSeconds}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+              placeholder="00"
+              min="0"
+              max="59"
+              className="text-center"
+            />
+          </div>
         </div>
       </div>
 
-      {/* メモ - 高さを調整 */}
+      {/* 終了時間編集 */}
       <div>
-        <label className="block text-sm font-medium text-foreground mb-1">
+        <label className="block text-sm font-medium text-foreground mb-2">
+          終了時間
+        </label>
+        <div className="flex items-center gap-1">
+          <div className="flex-1">
+            <Input
+              type="number"
+              value={endHours}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEndHours(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
+              placeholder="00"
+              min="0"
+              max="23"
+              className="text-center"
+            />
+          </div>
+          <span className="text-gray-500">:</span>
+          <div className="flex-1">
+            <Input
+              type="number"
+              value={endMinutes}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEndMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+              placeholder="00"
+              min="0"
+              max="59"
+              className="text-center"
+            />
+          </div>
+          <span className="text-gray-500">:</span>
+          <div className="flex-1">
+            <Input
+              type="number"
+              value={endSeconds}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEndSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+              placeholder="00"
+              min="0"
+              max="59"
+              className="text-center"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* メモ編集 */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
           メモ
         </label>
         <textarea
           value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="メモを入力"
-          className="w-full p-2 border border-border rounded-lg bg-background text-foreground resize-none"
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNote(e.target.value)}
+          placeholder="メモを入力してください（任意）"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           rows={3}
         />
       </div>
@@ -145,47 +189,18 @@ export function TimeEntryEditForm({
               この操作は取り消せません。
             </p>
           </div>
-          <Button
+          <button
             type="button"
-            variant="destructive"
-            size="md"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="text-white"
-            icon={
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            onClick={handleDelete}
+            className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 01 16.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            }
-          >
             削除
-          </Button>
+          </button>
         </div>
       </div>
-
-      {/* 削除確認 */}
-      {showDeleteConfirm && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-800 mb-3 font-medium">本当に削除しますか？</p>
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-            >
-              削除
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(false)}
-            >
-              キャンセル
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* ボタン群 */}
       <div className="flex gap-3 pt-2">
@@ -195,28 +210,19 @@ export function TimeEntryEditForm({
           size="md"
           onClick={onCancel}
           className="flex-1"
-          icon={
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          }
         >
           キャンセル
         </Button>
         <Button
-          type="submit"
+          type="button"
           variant="primary"
           size="md"
+          onClick={handleSave}
           className="flex-1"
-          icon={
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          }
         >
           保存
         </Button>
       </div>
-    </form>
+    </div>
   );
 } 

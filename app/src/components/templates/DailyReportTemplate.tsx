@@ -89,7 +89,12 @@ export function DailyReportTemplate({
       <div className="grid grid-cols-1 lg:grid-cols-6 gap-8 max-w-5xl mx-auto">
         {/* 左サイドバー - タイマー */}
         <div className="lg:col-span-4">
-          <TimerBox onNewEntry={handleNewEntry} />
+          <TimerBox 
+            onNewEntry={handleNewEntry} 
+            onTimerCreated={(timerId: string) => {
+              // 日次レポートページでは特別な処理は不要
+            }}
+          />
         </div>
         
         {/* 右サイド - タイムライン */}

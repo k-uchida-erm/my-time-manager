@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ToggleItemProps {
-  title: string;
+  title: React.ReactNode;
   description: string;
   checked: boolean;
   onChange: (checked: boolean) => void;

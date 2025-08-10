@@ -6,6 +6,7 @@ import { Button } from '../atoms/ui';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { requestNotificationPermission } from '@/lib/utils/notifications';
 
 export function Navigation() {
   const pathname = usePathname();
@@ -19,12 +20,30 @@ export function Navigation() {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       setLoading(false);
+      
+      // ユーザーがログインしている場合、通知許可をリクエスト
+      if (user) {
+        try {
+          await requestNotificationPermission();
+        } catch (error) {
+          console.warn('通知許可のリクエストに失敗しました:', error);
+        }
+      }
     };
 
     getUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
+      
+      // ログイン時に通知許可をリクエスト
+      if (event === 'SIGNED_IN' && session?.user) {
+        try {
+          await requestNotificationPermission();
+        } catch (error) {
+          console.warn('通知許可のリクエストに失敗しました:', error);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -85,9 +104,10 @@ export function Navigation() {
                     href={item.href}
                     className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200 ${
                       pathname === item.href
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
+                        ? 'border-[#3b82f6] text-foreground'
+                        : 'border-transparent text-gray-400 hover:text-foreground hover:border-gray-300'
                     }`}
+                    style={pathname === item.href ? { borderBottomColor: '#3b82f6' } : {}}
                   >
                     {getIcon(item.icon)}
                     <span className="ml-2">{item.label}</span>

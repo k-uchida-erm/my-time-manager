@@ -69,6 +69,45 @@ export function Timeline({
     return (hour + minute / 60) * (baseHeight * zoomLevel) / 24 + 20;
   };
 
+  // ズーム変更時に現在時刻を中心に保つ
+  const handleZoomChange = (newZoomLevel: number) => {
+    if (!containerRef.current || !currentTime) {
+      setZoomLevel(newZoomLevel);
+      return;
+    }
+
+    // 現在のスクロール位置と表示エリアの中心位置を取得
+    const container = containerRef.current;
+    const currentScrollTop = container.scrollTop;
+    const containerHeight = container.clientHeight;
+    const viewportCenter = currentScrollTop + containerHeight / 2;
+    
+    // 現在時刻の位置を取得（現在のズームレベルでの位置）
+    const now = currentTime;
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const currentTimePos = (hour + minute / 60) * (baseHeight * zoomLevel) / 24 + 20;
+    
+    // 新しいズームレベルでの現在時刻位置を計算
+    const newCurrentTimePos = (hour + minute / 60) * (baseHeight * newZoomLevel) / 24 + 20;
+    
+    // ズーム比率を計算
+    const zoomRatio = newZoomLevel / zoomLevel;
+    
+    // 新しいスクロール位置を計算（現在時刻を中心に保つ）
+    const newScrollTop = newCurrentTimePos - containerHeight / 2;
+    
+    // ズームレベルを更新
+    setZoomLevel(newZoomLevel);
+    
+    // 次のフレームでスクロール位置を調整
+    requestAnimationFrame(() => {
+      if (containerRef.current) {
+        containerRef.current.scrollTop = Math.max(0, newScrollTop);
+      }
+    });
+  };
+
   const handleSelectEntry = (entry: TimeEntry, event: React.MouseEvent) => {
     if (selectedEntry?.id === entry.id) {
       setSelectedEntry(null);
@@ -86,7 +125,6 @@ export function Timeline({
         // エントリの中央位置に配置
         const top = rect.top - containerRect.top + (rect.height / 2);
         
-        console.log('Tooltip position:', { top, left, rect, containerRect });
         setTooltipPosition({ top, left });
       }
     }
@@ -138,7 +176,7 @@ export function Timeline({
         {/* ズームコントロール */}
         <TimelineControls
           zoomLevel={zoomLevel}
-          onZoomChange={setZoomLevel}
+          onZoomChange={handleZoomChange}
         />
 
         {/* メモの吹き出し - タイムラインコンテナ内に配置 */}
@@ -154,19 +192,19 @@ export function Timeline({
             id="timeline-tooltip"
           />
         )}
-      </div>
 
-      {/* 編集モーダル */}
-      <TimeEntryEditModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingEntry(null);
-        }}
-        onSave={handleSaveEntry}
-        onDelete={handleDeleteEntry}
-        entry={editingEntry}
-      />
+        {/* 編集モーダル - タイムラインコンテナ内に配置 */}
+        <TimeEntryEditModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingEntry(null);
+          }}
+          onSave={handleSaveEntry}
+          onDelete={handleDeleteEntry}
+          entry={editingEntry}
+        />
+      </div>
     </div>
   );
 } 

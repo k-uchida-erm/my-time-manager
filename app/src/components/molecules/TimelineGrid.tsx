@@ -38,15 +38,28 @@ export function TimelineGrid({
     const startTime = new Date(entry.start_time);
     const startHour = startTime.getHours();
     const startMinute = startTime.getMinutes();
-    const top = (startHour + startMinute / 60) * (baseHeight / 24) + 20;
+    const startSecond = startTime.getSeconds();
+    const top = (startHour + startMinute / 60 + startSecond / 3600) * (baseHeight * zoomLevel / 24) + 20;
 
     const endTime = new Date(entry.end_time);
     const endHour = endTime.getHours();
     const endMinute = endTime.getMinutes();
-    let height = (endHour + endMinute / 60) * (baseHeight / 24) - top + 20;
+    const endSecond = endTime.getSeconds();
+    let height = (endHour + endMinute / 60 + endSecond / 3600) * (baseHeight * zoomLevel / 24) - top + 20;
 
-    // 短い記録でも表示されるように最小高さを設定
-    const minHeight = 15 * zoomLevel;
+    // ズームレベルに応じた最小高さを動的に設定
+    let minHeight;
+    if (zoomLevel >= 5) {
+      // 500%: 2分以下の記録に最小高さ適用
+      minHeight = Math.max(8, height < (2 * 60 * baseHeight * zoomLevel / (24 * 3600)) ? 8 : 0);
+    } else if (zoomLevel >= 2.5) {
+      // 250%: 5分以下の記録に最小高さ適用
+      minHeight = Math.max(12, height < (5 * 60 * baseHeight * zoomLevel / (24 * 3600)) ? 12 : 0);
+    } else {
+      // 100%: 10分以下の記録に最小高さ適用
+      minHeight = Math.max(15, height < (10 * 60 * baseHeight * zoomLevel / (24 * 3600)) ? 15 : 0);
+    }
+
     if (height < minHeight) {
       height = minHeight;
     }

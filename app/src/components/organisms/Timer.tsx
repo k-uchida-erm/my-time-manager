@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { addTimeEntry, deleteCustomTimer } from '@/app/actions'
 import { CustomTimer } from '../molecules/CustomTimer'
 import { CustomTimer as CustomTimerType } from '../molecules/TimerCreationModal'
@@ -18,20 +18,64 @@ type TimerProps = {
   isLoading: boolean;
   onModalOpen?: () => void;
   onEditTimer?: (timer: CustomTimerType) => void;
+  onDeleteTimer?: (timerId: string) => void;
   onNewEntry?: (entry: TimeEntry) => void;
 }
 
-export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNewEntry }: TimerProps) {
+export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDeleteTimer, onNewEntry }: TimerProps) {
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const customTimerRef = useRef<CustomTimerHandle | null>(null)
+  const activeTimerIdRef = useRef<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // 初期化時にアクティブタイマーを設定
+  // タイマーIDのリストを安定化
+  const timerIds = useMemo(() => customTimers.map(t => t.id), [customTimers]);
+  const hasTimers = customTimers.length > 0;
+
+  // 初期化処理（一度だけ実行）
   useEffect(() => {
-    if (customTimers.length > 0 && !activeTimerId) {
-      setActiveTimerId(customTimers[0].id)
+    if (hasTimers && !isInitialized) {
+      const savedActiveTimerId = localStorage.getItem('activeTimerId');
+      
+      if (savedActiveTimerId && customTimers.find(t => t.id === savedActiveTimerId)) {
+        // 保存されたIDのタイマーが存在する場合
+        setActiveTimerId(savedActiveTimerId);
+        activeTimerIdRef.current = savedActiveTimerId;
+      } else {
+        // 新しいタイマーリストの最初のタイマーを選択
+        setActiveTimerId(customTimers[0].id);
+        activeTimerIdRef.current = customTimers[0].id;
+      }
+      
+      setIsInitialized(true);
     }
-  }, [customTimers, activeTimerId])
+  }, [hasTimers, isInitialized, customTimers]);
+
+  // タイマーリストが変更された時の処理
+  useEffect(() => {
+    if (isInitialized && hasTimers) {
+      // 現在のアクティブタイマーがまだ存在するかチェック
+      const currentActiveExists = activeTimerId && customTimers.find(t => t.id === activeTimerId);
+      
+      if (!currentActiveExists) {
+        // 存在しない場合は最初のタイマーを選択
+        setActiveTimerId(customTimers[0].id);
+        activeTimerIdRef.current = customTimers[0].id;
+      }
+    }
+  }, [timerIds, isInitialized, hasTimers, activeTimerId, customTimers]);
+
+  // activeTimerIdが変更されたらlocalStorageに保存
+  useEffect(() => {
+    if (activeTimerId) {
+      localStorage.setItem('activeTimerId', activeTimerId);
+      activeTimerIdRef.current = activeTimerId;
+    } else {
+      localStorage.removeItem('activeTimerId');
+      activeTimerIdRef.current = null;
+    }
+  }, [activeTimerId]);
 
   const handleCustomTimerComplete = async (duration: number) => {
     const formData = new FormData()
@@ -50,25 +94,25 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
       const result = await addTimeEntry(formData)
       
       if (result?.error) {
-        console.error('Server returned error:', result.error)
+        console.error('Failed to add time entry:', result.error)
         alert(`記録に失敗しました: ${result.error}`)
-      } else {
-        setNote('') // 記録後にメモをクリア
-        
-        // 新しい記録をタイムラインに追加
-        if (onNewEntry) {
-          const newEntry: TimeEntry = {
-            id: Date.now(), // 仮のID（実際のIDはサーバーから返される）
-            start_time: new Date(startTime).toISOString(),
-            end_time: new Date(now).toISOString(),
-            duration_seconds: duration,
-            note: note || activeTimer.title,
-            timer_title: activeTimer.title,
-            timer_color: activeTimer.color,
-            is_edited: false
-          };
-          onNewEntry(newEntry);
-        }
+        return
+      }
+
+      const newEntry: TimeEntry = {
+        id: Date.now(),
+        start_time: new Date(startTime).toISOString(),
+        end_time: new Date(now).toISOString(),
+        duration_seconds: duration,
+        note: note || activeTimer.title,
+        timer_title: activeTimer.title,
+        timer_color: activeTimer.color
+      }
+
+      setNote('')
+      
+      if (onNewEntry) {
+        onNewEntry(newEntry);
       }
     } catch (error) {
       console.error('Failed to add time entry:', error)
@@ -79,6 +123,12 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
   const handleEditTimer = (timer: CustomTimerType) => {
     onEditTimer?.(timer)
   }
+
+  // 新規タイマー作成時のコールバック
+  const handleTimerCreated = (timerId: string) => {
+    setActiveTimerId(timerId);
+    setIsInitialized(true); // 強制的に初期化完了状態にする
+  };
 
   // ローディング中
   if (isLoading) {
@@ -133,8 +183,23 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
                   const { error } = result as { error?: string };
                   alert(`タイマーの削除に失敗しました: ${error}`);
                 } else {
-                  // タイマーリストを更新
-                  window.location.reload(); // 簡単な方法としてリロード
+                  // 削除されるタイマーのlocalStorageをクリア
+                  localStorage.removeItem(`timer_${tabId}`);
+                  
+                  // 削除されたタイマーがアクティブタイマーだった場合、別のタイマーをアクティブに設定
+                  if (activeTimerId === tabId) {
+                    const remainingTimers = customTimers.filter(t => t.id !== tabId);
+                    const newActiveTimerId = remainingTimers.length > 0 ? remainingTimers[0].id : null;
+                    setActiveTimerId(newActiveTimerId);
+                    if (newActiveTimerId) {
+                      localStorage.setItem('activeTimerId', newActiveTimerId);
+                    } else {
+                      localStorage.removeItem('activeTimerId');
+                    }
+                  }
+                  
+                  // 親コンポーネントに削除を通知
+                  onDeleteTimer?.(tabId);
                 }
               });
             }
@@ -164,14 +229,23 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onNew
       <div className="bg-white/80 backdrop-blur-sm border-l border-r border-b border-gray-200 rounded-b-2xl p-6">
         {/* アクティブタイマー */}
         <div className="relative">
-          <CustomTimer 
-            ref={customTimerRef}
-            timer={activeTimer}
-            onComplete={handleCustomTimerComplete}
-            onReset={() => {
-              // リセット機能はCustomTimer内で処理される
-            }}
-          />
+          {/* すべてのタイマーをレンダリングして状態を保持 */}
+          {customTimers.map((timer) => (
+            <div
+              key={timer.id}
+              className={activeTimer.id === timer.id ? 'block' : 'hidden'}
+            >
+              <CustomTimer 
+                ref={activeTimer.id === timer.id ? customTimerRef : null}
+                timer={timer}
+                isActive={activeTimer.id === timer.id}
+                onComplete={handleCustomTimerComplete}
+                onReset={() => {
+                  // リセット機能はCustomTimer内で処理される
+                }}
+              />
+            </div>
+          ))}
           
           {/* 右側のボタン群 */}
           <div className="absolute top-4 right-4 flex flex-col gap-2">
