@@ -233,7 +233,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
       ? durationRef.current 
       : Math.floor((Date.now() - (startTimeRef.current || 0)) / 1000) + pausedElapsedRef.current;
     
-    let note = '';
+    const note = '';
     
     // 通知
     if (timer.enableNotifications) {
