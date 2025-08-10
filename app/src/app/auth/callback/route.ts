@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // 認証成功後は日次レポートにリダイレクト
-  const redirectUrl = new URL('/daily', process.env.NEXT_PUBLIC_SITE_URL!)
+  // 認証成功後は日次レポートにリダイレクト（現在のオリジンを使用）
+  const redirectUrl = new URL('/daily', request.url)
   return NextResponse.redirect(redirectUrl)
 }

@@ -3,7 +3,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 
 export default function LoginPage() {
   const supabase = createClientComponentClient()
@@ -19,6 +19,14 @@ export default function LoginPage() {
     }
     getSession()
   }, [router, supabase])
+
+  const redirectTo = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/auth/callback`
+    }
+    // SSR時のフォールバック（Vercel環境変数があれば使用）
+    return `${process.env.NEXT_PUBLIC_SITE_URL || ''}/auth/callback`
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-accent/5 p-4">
@@ -88,7 +96,7 @@ export default function LoginPage() {
             }}
             theme="light"
             providers={['google']}
-            redirectTo={`${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`}
+            redirectTo={redirectTo}
           />
         </div>
 
