@@ -2,6 +2,8 @@ import { ErrorBoundary, LoadingState } from "@/components/atoms/feedback";
 import { DailyReportClient } from "./DailyReportClient";
 import { getDailyData } from "@/lib/services/dailyService";
 
+export const dynamic = 'force-dynamic'
+
 export default async function DailyReportPage() {
   try {
     const { timeEntries, today } = await getDailyData();

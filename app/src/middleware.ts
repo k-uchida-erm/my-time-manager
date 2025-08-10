@@ -6,21 +6,27 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  let hasSession = false
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    hasSession = !!session
+  } catch (error) {
+    console.error('middleware: failed to get session', error)
+    // 失敗時はセッション不明として扱うが、致命的にブロックしない
+    hasSession = false
+  }
 
   // 認証が必要なページのパス
   const protectedPaths = ['/daily', '/monthly']
   const isProtectedPath = protectedPaths.some(path => req.nextUrl.pathname.startsWith(path))
 
   // ログインページにアクセスしてログイン済みの場合
-  if (req.nextUrl.pathname.startsWith('/auth/login') && session) {
+  if (req.nextUrl.pathname.startsWith('/auth/login') && hasSession) {
     return NextResponse.redirect(new URL('/daily', req.url))
   }
 
   // 保護されたページにアクセスしてログインしていない場合
-  if (isProtectedPath && !session) {
+  if (isProtectedPath && !hasSession) {
     return NextResponse.redirect(new URL('/auth/login', req.url))
   }
 
@@ -36,6 +42,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

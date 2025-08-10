@@ -3,6 +3,8 @@ import { TimeEntry } from "@/lib/types";
 import { mockTimeEntries, getMockChartData, getMockCalendarEntries, getMockDailyEntries } from "@/lib/mockData";
 import { MonthlyReportClient } from "./MonthlyReportClient";
 
+export const dynamic = 'force-dynamic'
+
 export default async function MonthlyReportPage() {
   const supabase = createSupabaseServerClient();
   
