@@ -55,7 +55,9 @@ export function useTimerRestore(params: UseTimerRestoreParams) {
     }
 
     // タイプ不一致はクリア
-    const persistedType: TimerType = (state as any).timerType || state.type || timerType
+    const persistedTypeSource = state as Partial<PersistedTimerState> & { timerType?: TimerType; type?: TimerType }
+    const persistedType: TimerType =
+      (persistedTypeSource.timerType ?? persistedTypeSource.type ?? timerType)
     if (persistedType !== timerType) {
       clearState()
       onRestored()

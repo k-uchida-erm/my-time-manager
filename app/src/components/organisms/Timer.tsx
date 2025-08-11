@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { addTimeEntry, deleteCustomTimer } from '@/app/actions'
 import { CustomTimer } from '../molecules/CustomTimer'
 import { CustomTimer as CustomTimerType } from '../molecules/TimerCreationModal'
-import { Tabs, Button } from '../atoms/ui'
+import { Tabs } from '../atoms/ui'
 import { LoadingSpinner } from '../atoms/feedback'
 import { TimerEmptyState } from '../molecules/TimerEmptyState'
 import type { TimeEntry } from '@/lib/types'
@@ -123,12 +123,6 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
   const handleEditTimer = (timer: CustomTimerType) => {
     onEditTimer?.(timer)
   }
-
-  // 新規タイマー作成時のコールバック
-  const handleTimerCreated = (timerId: string) => {
-    setActiveTimerId(timerId);
-    setIsInitialized(true); // 強制的に初期化完了状態にする
-  };
 
   // ローディング中
   if (isLoading) {

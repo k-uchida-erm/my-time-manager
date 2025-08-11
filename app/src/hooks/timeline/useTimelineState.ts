@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { TimeEntry } from '@/lib/types'
 
 interface UseTimelineStateArgs {
@@ -48,7 +48,6 @@ export function useTimelineState({ onUpdateEntry, onDeleteEntry }: UseTimelineSt
     const baseHeight = 500
     const hour = currentTime.getHours()
     const minute = currentTime.getMinutes()
-    const currentTimePos = (hour + minute / 60) * (baseHeight * zoomLevel) / 24 + 20
     const newCurrentTimePos = (hour + minute / 60) * (baseHeight * newZoomLevel) / 24 + 20
     const containerHeight = container.clientHeight
     const newScrollTop = newCurrentTimePos - containerHeight / 2

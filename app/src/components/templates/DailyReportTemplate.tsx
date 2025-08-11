@@ -83,7 +83,7 @@ export function DailyReportTemplate({
         <div className="lg:col-span-4">
           <TimerBox 
             onNewEntry={handleNewEntry} 
-            onTimerCreated={(timerId: string) => {}}
+            onTimerCreated={() => {}}
           />
         </div>
         <div className="lg:col-span-2">
