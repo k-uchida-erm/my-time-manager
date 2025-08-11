@@ -34,7 +34,6 @@ export function TimelineBox({
       onDeleteEntry={onDeleteEntry}
       isUpdating={isUpdating}
       isDeleting={isDeleting}
-      // @ts-expect-error propagate snapshot
       dateSnapshot={dateSnapshot}
     />
   );
