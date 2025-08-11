@@ -10,6 +10,8 @@ import { useTimerPersistence } from '@/hooks/timer/useTimerPersistence';
 import { useTimerEngine } from '@/hooks/timer/useTimerEngine';
 import { useTimerRestore } from '@/hooks/timer/useTimerRestore';
 import { useTimerControls } from '@/hooks/timer/useTimerControls';
+import type { TimerType } from '@/lib/timerTypes';
+import type { PersistedTimerState } from '@/lib/timerTypes';
 
 interface CustomTimerProps {
   timer: CustomTimerType;
@@ -162,7 +164,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
 
   useTimerRestore({
     timerId: timer.id,
-    timerType: timer.type as any,
+    timerType: timer.type as TimerType,
     durationSec: timer.type === 'countdown' ? (timer.duration || 25) * 60 : undefined,
     workDurationSec: timer.type === 'pomodoro' ? (timer.workDuration || 25) * 60 : undefined,
     breakDurationSec: timer.type === 'pomodoro' ? (timer.breakDuration ? timer.breakDuration * 60 : 5 * 60) : undefined,
@@ -211,11 +213,11 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     
     // 新規タイマー作成時のみlocalStorageをクリア（リロード時は保持）
     // この処理は新規作成時のみ実行されるべき
-  }, [timer.id, timer.type]);
+  }, [timer.id, timer.type, timer.duration, timer.workDuration, timer.breakDuration]);
 
   // タイマー状態をローカルストレージに保存
   const saveTimerState = useCallback(() => {
-    const state = {
+    const state: PersistedTimerState = {
       isRunning: isRunningRef.current,
       startTime: startTimeRef.current,
       pausedElapsed: pausedElapsedRef.current,
@@ -226,8 +228,8 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
       completedPomodoros,
       type: timer.type,
       lastUpdate: Date.now()
-    } as const;
-    saveState(state as any);
+    };
+    saveState(state);
   }, [pomodoroPhase, completedPomodoros, timer.type, saveState]);
 
   const saveTimerStateWithOverride = useCallback((overrides?: { isRunning?: boolean; startTime?: number | null }) => {
@@ -270,6 +272,24 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
   })), [setupBeforeUnload, pomodoroPhase, completedPomodoros, timer.type]);
 
   // タイマー完了処理
+  // Define controls before handleComplete to satisfy hook deps
+  const { handleStart, handleStop, handleReset, handleRecordClick } = useTimerControls({
+    timer,
+    setIsRunning,
+    setPomodoroPhase,
+    setCompletedPomodoros,
+    setDisplayTime,
+    onReset,
+    onComplete,
+    startTimeRef,
+    pausedElapsedRef,
+    durationRef,
+    workDurationRef,
+    breakDurationRef,
+    clearState,
+    saveEvent,
+  });
+
   const handleComplete = useCallback(() => {
     setIsRunning(false);
     
@@ -298,24 +318,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     saveEvent('complete', note || timer.title);
     onComplete?.({ durationSeconds: duration, startTimeMs: startMs, endTimeMs: nowMs });
     handleReset();
-  }, [timer.type, timer.title, timer.enableNotifications, onComplete]);
-
-  const { handleStart, handleStop, handleReset, handleRecordClick } = useTimerControls({
-    timer,
-    setIsRunning,
-    setPomodoroPhase,
-    setCompletedPomodoros,
-    setDisplayTime,
-    onReset,
-    onComplete,
-    startTimeRef,
-    pausedElapsedRef,
-    durationRef,
-    workDurationRef,
-    breakDurationRef,
-    clearState,
-    saveEvent,
-  });
+  }, [timer.type, timer.title, timer.enableNotifications, onComplete, handleReset, saveEvent]);
 
   useEffect(() => {
     handleCompleteRef.current = handleComplete;
@@ -324,7 +327,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
   useTimerEngine({
     isRunning,
     isActive,
-    timerType: timer.type as any,
+    timerType: timer.type as TimerType,
     pomodoroPhase,
     startTimeRef,
     pausedElapsedRef,
@@ -412,8 +415,8 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
               const workEndTime = now;
               const workDuration = Math.floor((workEndTime - workStartTime) / 1000);
 
-              if (workStartTime) {
-                onCompleteRef.current?.({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
+              if (onComplete) {
+                onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
               }
 
               setPomodoroPhase('break');
@@ -423,7 +426,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
               durationRef.current = breakDurationRef.current;
               saveEvent('complete', '作業時間完了');
 
-              if (enableNotificationsRef.current) {
+              if (timer.enableNotifications) {
                 sendNotification({
                   title: 'ポモドーロ完了！',
                   message: '休憩時間を開始しましょう。'
@@ -437,7 +440,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
               durationRef.current = workDurationRef.current;
               saveEvent('complete', '休憩時間完了');
 
-              if (enableNotificationsRef.current) {
+              if (timer.enableNotifications) {
                 sendNotification({
                   title: '休憩完了！',
                   message: '作業を再開しましょう。'
@@ -451,7 +454,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isRunning, timer.type, pomodoroPhase]);
+  }, [isRunning, timer.type, pomodoroPhase, saveEvent]);
 
   // saveEvent は useTimerEvents から提供
 
