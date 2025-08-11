@@ -24,7 +24,8 @@ export function TimelineGrid({
   className = ""
 }: TimelineGridProps) {
   const [isClient, setIsClient] = useState(false);
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  // Include 24:00 tick at the bottom
+  const hours = Array.from({ length: 25 }, (_, i) => i);
 
   useEffect(() => {
     setIsClient(true);
@@ -71,7 +72,8 @@ export function TimelineGrid({
     <div 
       className={`relative ${className}`}
       style={{ 
-        height: `${baseHeight * zoomLevel}px`,
+        // Extend a bit more to ensure the 24:00 tick and line are fully visible
+        height: `${baseHeight * zoomLevel + 32}px`,
         minHeight: '500px',
         paddingTop: '20px'
       }}

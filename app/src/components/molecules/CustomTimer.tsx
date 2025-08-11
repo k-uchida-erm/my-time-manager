@@ -369,6 +369,37 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     },
     shouldSaveState: isActive && isStateRestored,
     saveTimerState,
+    onProlongedPause: (pauseStartedAt) => {
+      const nowMs = Date.now();
+      // Determine session start/end based on timer type and paused state
+      let startMs: number;
+      let endMs = nowMs;
+      let durationSeconds = 0;
+
+      if (timer.type === 'countdown') {
+        // For countdown, record the actual elapsed during the session before pause
+        // elapsed before pause = durationRef.current - remainingAtPause
+        const elapsedBeforePause = pausedElapsedRef.current;
+        durationSeconds = elapsedBeforePause;
+        startMs = nowMs - durationSeconds * 1000;
+      } else {
+        // Stopwatch or pomodoro: elapsed is pausedElapsed accumulated
+        durationSeconds = pausedElapsedRef.current;
+        startMs = (startTimeRef.current ?? nowMs) - pausedElapsedRef.current * 1000;
+      }
+
+      // If nothing meaningful was elapsed, skip
+      if (durationSeconds <= 0) {
+        // Just reset
+        handleReset();
+        return;
+      }
+
+      // Save as completion and reset
+      saveEvent('complete', '一時停止が10分継続したため自動記録');
+      onComplete?.({ durationSeconds, startTimeMs: startMs, endTimeMs: endMs });
+      handleReset();
+    },
   });
 
   // タイマー開始/停止の制御
@@ -483,6 +514,8 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     return timer.title;
   };
 
+  const isPaused = !isRunning && startTimeRef.current === null && pausedElapsedRef.current > 0;
+
   return (
     <>
       {/* タイマー情報 */}
@@ -520,6 +553,14 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
             />
           )}
         </div>
+        {isPaused && (
+          <div className="mt-4 inline-flex items-center gap-2 text-xs text-red-600">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86l-7.4 12.8A1 1 0 003.7 18h16.6a1 1 0 00.86-1.5l-7.4-12.8a1 1 0 00-1.72 0z" />
+            </svg>
+            <span>一時停止が10分間続くと自動的に記録してリセットされます</span>
+          </div>
+        )}
       </div>
     </>
   );

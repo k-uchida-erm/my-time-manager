@@ -60,6 +60,9 @@ export function Timeline({
     return (hour + minute / 60) * (baseHeight * zoomLevel) / 24 + 20;
   };
 
+  // Container height fixed to 100% view height so the frame size is constant across zooms
+  const containerHeight = `${baseHeight + 32}px`;
+
   return (
     <div className={`space-y-6 ${className}`}>
       {/* ヘッダー */}
@@ -73,6 +76,8 @@ export function Timeline({
         <TimelineContainer
           ref={containerRef}
           onScroll={setScrollTop}
+          height={containerHeight}
+          maxHeight={containerHeight}
         >
           <TimelineEntryList
             entries={entries}

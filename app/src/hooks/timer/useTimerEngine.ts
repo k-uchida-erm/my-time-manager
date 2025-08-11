@@ -1,4 +1,4 @@
-import { MutableRefObject, useEffect } from 'react'
+import { MutableRefObject, useEffect, useRef } from 'react'
 
 export type TimerType = 'countdown' | 'stopwatch' | 'pomodoro'
 export type PomodoroPhase = 'work' | 'break'
@@ -32,6 +32,9 @@ interface UseTimerEngineParams {
   // state save per frame (optional)
   shouldSaveState?: boolean
   saveTimerState?: () => void
+
+  // prolonged pause callback (optional)
+  onProlongedPause?: (pauseStartedAt: number) => void
 }
 
 export function useTimerEngine(params: UseTimerEngineParams) {
@@ -55,7 +58,50 @@ export function useTimerEngine(params: UseTimerEngineParams) {
     onPomodoroBreakZero,
     shouldSaveState,
     saveTimerState,
+    onProlongedPause,
   } = params
+
+  // Track prolonged pause and trigger callback after 10 minutes
+  const pauseTimeoutRef = useRef<number | null>(null)
+  const pauseStartedAtRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    // Only consider pause when not running and a session has elapsed (pausedElapsed > 0) and timer not actively counting (startTimeRef is null)
+    const isPausedState = !isRunning && startTimeRef.current === null && pausedElapsedRef.current > 0
+
+    if (isPausedState && isActive) {
+      if (pauseTimeoutRef.current == null) {
+        pauseStartedAtRef.current = Date.now()
+        // 10 minutes in ms
+        pauseTimeoutRef.current = window.setTimeout(() => {
+          // Confirm still paused and active before firing
+          const stillPaused = !isRunning && startTimeRef.current === null && pausedElapsedRef.current > 0
+          if (stillPaused && isActive && onProlongedPause && pauseStartedAtRef.current) {
+            onProlongedPause(pauseStartedAtRef.current)
+          }
+          if (pauseTimeoutRef.current) {
+            clearTimeout(pauseTimeoutRef.current)
+            pauseTimeoutRef.current = null
+          }
+          pauseStartedAtRef.current = null
+        }, 10 * 60 * 1000)
+      }
+    } else {
+      // Clear when running again or no paused content
+      if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current)
+        pauseTimeoutRef.current = null
+      }
+      pauseStartedAtRef.current = null
+    }
+
+    return () => {
+      if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current)
+        pauseTimeoutRef.current = null
+      }
+    }
+  }, [isRunning, isActive, pausedElapsedRef, startTimeRef, onProlongedPause])
 
   useEffect(() => {
     if (!isRunning || !isActive) {
