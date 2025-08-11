@@ -373,7 +373,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
       const nowMs = Date.now();
       // Determine session start/end based on timer type and paused state
       let startMs: number;
-      let endMs = nowMs;
+      const endMs = nowMs;
       let durationSeconds = 0;
 
       if (timer.type === 'countdown') {
