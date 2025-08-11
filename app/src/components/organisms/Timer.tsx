@@ -7,6 +7,7 @@ import { Tabs, Button } from '../atoms/ui'
 import { LoadingSpinner } from '../atoms/feedback'
 import { TimerEmptyState } from '../molecules/TimerEmptyState'
 import type { TimeEntry } from '@/lib/types'
+import { useTimerOrder } from '@/hooks/timer/useTimerOrder'
 
 // CustomTimer コンポーネント用のリセットハンドル
 interface CustomTimerHandle {
@@ -28,6 +29,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
   const customTimerRef = useRef<CustomTimerHandle | null>(null)
   const activeTimerIdRef = useRef<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const { sortedTimers, handleReorder } = useTimerOrder(customTimers)
 
   // タイマーIDのリストを安定化
   const timerIds = useMemo(() => customTimers.map(t => t.id), [customTimers]);
@@ -38,33 +40,33 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
     if (hasTimers && !isInitialized) {
       const savedActiveTimerId = localStorage.getItem('activeTimerId');
       
-      if (savedActiveTimerId && customTimers.find(t => t.id === savedActiveTimerId)) {
+      if (savedActiveTimerId && sortedTimers.find(t => t.id === savedActiveTimerId)) {
         // 保存されたIDのタイマーが存在する場合
         setActiveTimerId(savedActiveTimerId);
         activeTimerIdRef.current = savedActiveTimerId;
       } else {
         // 新しいタイマーリストの最初のタイマーを選択
-        setActiveTimerId(customTimers[0].id);
-        activeTimerIdRef.current = customTimers[0].id;
+        setActiveTimerId(sortedTimers[0].id);
+        activeTimerIdRef.current = sortedTimers[0].id;
       }
       
       setIsInitialized(true);
     }
-  }, [hasTimers, isInitialized, customTimers]);
+  }, [hasTimers, isInitialized, sortedTimers]);
 
   // タイマーリストが変更された時の処理
   useEffect(() => {
     if (isInitialized && hasTimers) {
       // 現在のアクティブタイマーがまだ存在するかチェック
-      const currentActiveExists = activeTimerId && customTimers.find(t => t.id === activeTimerId);
+      const currentActiveExists = activeTimerId && sortedTimers.find(t => t.id === activeTimerId);
       
       if (!currentActiveExists) {
         // 存在しない場合は最初のタイマーを選択
-        setActiveTimerId(customTimers[0].id);
-        activeTimerIdRef.current = customTimers[0].id;
+        setActiveTimerId(sortedTimers[0].id);
+        activeTimerIdRef.current = sortedTimers[0].id;
       }
     }
-  }, [timerIds, isInitialized, hasTimers, activeTimerId, customTimers]);
+  }, [timerIds, isInitialized, hasTimers, activeTimerId, sortedTimers]);
 
   // activeTimerIdが変更されたらlocalStorageに保存
   useEffect(() => {
@@ -147,7 +149,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
   }
 
   // タブの設定
-  const tabs = customTimers.map(timer => ({
+  const tabs = sortedTimers.map(timer => ({
     id: timer.id,
     label: timer.title,
     icon: null,
@@ -157,7 +159,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
   // アクティブなタイマーを取得（初期描画時もlocalStorageの値を優先）
   const savedActiveTimerId = typeof window !== 'undefined' ? localStorage.getItem('activeTimerId') : null;
   const effectiveActiveId = activeTimerId || savedActiveTimerId || customTimers[0]?.id;
-  const activeTimer = customTimers.find(timer => timer.id === effectiveActiveId) || customTimers[0]
+  const activeTimer = sortedTimers.find(timer => timer.id === effectiveActiveId) || sortedTimers[0]
 
   return (
     <div className="space-y-0">
@@ -167,8 +169,9 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
           tabs={tabs} 
           activeTab={effectiveActiveId || ''} 
           onTabChange={(tabId) => setActiveTimerId(tabId)}
+          onReorder={handleReorder}
           onEditTab={(tabId) => {
-            const timer = customTimers.find(t => t.id === tabId);
+            const timer = sortedTimers.find(t => t.id === tabId);
             if (timer) {
               onEditTimer?.(timer);
             }
@@ -188,7 +191,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
                   
                   // 削除されたタイマーがアクティブタイマーだった場合、別のタイマーをアクティブに設定
                   if (activeTimerId === tabId) {
-                    const remainingTimers = customTimers.filter(t => t.id !== tabId);
+                    const remainingTimers = sortedTimers.filter(t => t.id !== tabId);
                     const newActiveTimerId = remainingTimers.length > 0 ? remainingTimers[0].id : null;
                     setActiveTimerId(newActiveTimerId);
                     if (newActiveTimerId) {
@@ -230,7 +233,7 @@ export function Timer({ customTimers, isLoading, onModalOpen, onEditTimer, onDel
         {/* アクティブタイマー */}
         <div className="relative">
           {/* すべてのタイマーをレンダリングして状態を保持 */}
-          {customTimers.map((timer) => (
+          {sortedTimers.map((timer) => (
             <div
               key={timer.id}
               className={activeTimer.id === timer.id ? 'block' : 'hidden'}

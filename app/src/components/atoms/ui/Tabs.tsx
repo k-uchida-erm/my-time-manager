@@ -14,6 +14,7 @@ interface TabsProps {
   onTabChange: (tabId: string) => void;
   onEditTab?: (tabId: string) => void;
   onDeleteTab?: (tabId: string) => void;
+  onReorder?: (sourceId: string, targetId: string) => void;
   className?: string;
 }
 
@@ -23,6 +24,7 @@ export function Tabs({
   onTabChange, 
   onEditTab, 
   onDeleteTab, 
+  onReorder,
   className = '' 
 }: TabsProps) {
   const [contextMenu, setContextMenu] = useState<{
@@ -31,6 +33,7 @@ export function Tabs({
     y: number;
     tabId: string;
   } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const handleContextMenu = (event: React.MouseEvent, tabId: string) => {
     event.preventDefault();
@@ -62,11 +65,21 @@ export function Tabs({
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             onContextMenu={(e) => handleContextMenu(e, tab.id)}
+            draggable
+            onDragStart={() => setDraggingId(tab.id)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggingId && draggingId !== tab.id) {
+                onReorder?.(draggingId, tab.id);
+              }
+              setDraggingId(null);
+            }}
             className={`relative flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 ${
               activeTab === tab.id
                 ? 'bg-white/80 backdrop-blur-sm border-l border-t border-r border-gray-200 rounded-t-2xl text-gray-900 z-10'
                 : 'text-muted-foreground hover:text-foreground bg-gray-100/50 rounded-t-lg border-l border-t border-r border-gray-200/50'
-            }`}
+            } ${draggingId === tab.id ? 'opacity-70' : ''}`}
           >
             {tab.color && (
               <div 

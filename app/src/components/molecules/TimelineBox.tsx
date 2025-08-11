@@ -9,6 +9,12 @@ interface TimelineBoxProps {
   onDeleteEntry?: (entryId: number) => void;
   isUpdating?: number | null;
   isDeleting?: number | null;
+  dateSnapshot?: {
+    year: string;
+    monthLong: string;
+    day: string;
+    weekdayLong: string;
+  };
 }
 
 export function TimelineBox({ 
@@ -17,7 +23,8 @@ export function TimelineBox({
   onUpdateEntry, 
   onDeleteEntry,
   isUpdating,
-  isDeleting
+  isDeleting,
+  dateSnapshot
 }: TimelineBoxProps) {
   return (
     <Timeline
@@ -27,6 +34,8 @@ export function TimelineBox({
       onDeleteEntry={onDeleteEntry}
       isUpdating={isUpdating}
       isDeleting={isDeleting}
+      // @ts-expect-error propagate snapshot
+      dateSnapshot={dateSnapshot}
     />
   );
 } 

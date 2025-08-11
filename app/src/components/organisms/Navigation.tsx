@@ -4,54 +4,26 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '../atoms/ui';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useEffect, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
-import { requestNotificationPermission } from '@/lib/utils/notifications';
+import { useEffect } from 'react';
+import { useAuthUser } from '@/hooks/auth/useAuthUser';
+import { useNotificationPermission } from '@/hooks/notifications/useNotificationPermission';
 
 export function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClientComponentClient();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading } = useAuthUser();
+  const { request } = useNotificationPermission();
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
-      
-      // ユーザーがログインしている場合、通知許可をリクエスト
-      if (user) {
-        try {
-          await requestNotificationPermission();
-        } catch (error) {
-          console.warn('通知許可のリクエストに失敗しました:', error);
-        }
-      }
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      
-      // ログイン時に通知許可をリクエスト
-      if (event === 'SIGNED_IN' && session?.user) {
-        try {
-          await requestNotificationPermission();
-        } catch (error) {
-          console.warn('通知許可のリクエストに失敗しました:', error);
-        }
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+    // ログイン済みなら通知許可を促す（従来の挙動を維持）
+    if (user) {
+      request().catch((e) => console.warn('通知許可のリクエストに失敗しました:', e));
+    }
+  }, [user, request]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    // ログアウト後にログイン画面にリダイレクト
     router.push('/auth/login');
   };
 
@@ -94,8 +66,6 @@ export function Navigation() {
                 <span className="font-bold text-lg text-foreground">My Time Manager</span>
               </Link>
             </div>
-            
-            {/* ログイン済みの場合のみナビゲーションアイテムを表示 */}
             {user && (
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 {navItems.map((item) => (
@@ -116,7 +86,7 @@ export function Navigation() {
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center space-x-4">
             {!loading && (
               <>

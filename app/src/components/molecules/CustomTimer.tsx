@@ -5,6 +5,11 @@ import { PlayButton, RecordButton } from '../atoms/timer';
 import { saveTimerEvent } from '@/app/actions';
 import { sendTimerCompletionNotification, sendNotification } from '@/lib/utils/notifications';
 import { CustomTimer as CustomTimerType } from './TimerCreationModal';
+import { useTimerEvents } from '@/hooks/timer/useTimerEvents';
+import { useTimerPersistence } from '@/hooks/timer/useTimerPersistence';
+import { useTimerEngine } from '@/hooks/timer/useTimerEngine';
+import { useTimerRestore } from '@/hooks/timer/useTimerRestore';
+import { useTimerControls } from '@/hooks/timer/useTimerControls';
 
 interface CustomTimerProps {
   timer: CustomTimerType;
@@ -120,6 +125,9 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
   const handleCompleteRef = useRef<(() => void) | null>(null);
   const enableNotificationsRef = useRef<boolean>(!!timer.enableNotifications);
 
+  const { saveEvent } = useTimerEvents(timer.id, () => displayTime);
+  const { loadState, saveState, clearState, setupBeforeUnload } = useTimerPersistence(timer.id);
+
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
@@ -152,201 +160,25 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     didInitRefsFromSaved.current = true;
   }
 
-  // ローカルストレージからタイマー状態を復元（描画前に適用）
-  useLayoutEffect(() => {
-    console.log(`[Timer ${timer.id}] Starting state restoration...`);
-    const savedState = localStorage.getItem(`timer_${timer.id}`);
-    
-    if (savedState) {
-      try {
-        const state = JSON.parse(savedState);
-        console.log(`[Timer ${timer.id}] Found saved state:`, state);
-        const now = Date.now();
-        
-        // 設定が大幅に異なる場合は古い状態をクリア
-        const stateConfig = {
-          type: state.timerType || state.type || timer.type,
-          duration: state.duration,
-          workDuration: state.workDuration,
-          breakDuration: state.breakDuration
-        };
-        
-        const currentConfig = {
-          type: timer.type,
-          duration: timer.type === 'countdown' ? (timer.duration || 25) * 60 : undefined,
-          workDuration: timer.type === 'pomodoro' ? (timer.workDuration || 25) * 60 : undefined,
-          breakDuration: timer.type === 'pomodoro' ? (timer.breakDuration || 5) * 60 : undefined
-        };
-        
-        console.log(`[Timer ${timer.id}] State config:`, stateConfig);
-        console.log(`[Timer ${timer.id}] Current config:`, currentConfig);
-        
-        // タイマータイプが一致しない場合のみクリア
-        const typeMatches = stateConfig.type === currentConfig.type;
-        
-        if (!typeMatches) {
-          console.log(`[Timer ${timer.id}] Type mismatch, clearing state`);
-          localStorage.removeItem(`timer_${timer.id}`);
-          setIsStateRestored(true);
-          return;
-        }
-        
-        if (state.startTime) {
-          const elapsed = Math.floor((now - state.startTime) / 1000) + (state.pausedElapsed || 0);
-          console.log(`[Timer ${timer.id}] Elapsed time:`, elapsed);
-          
-          if (timer.type === 'countdown') {
-            const remaining = Math.max(state.duration - elapsed, 0);
-            console.log(`[Timer ${timer.id}] Countdown remaining:`, remaining);
-            if (remaining > 0) {
-              setDisplayTime(remaining);
-              // 保存された実行状態を復元
-              console.log(`[Timer ${timer.id}] Restoring running state:`, state.isRunning);
-              setIsRunning(state.isRunning);
-              if (state.isRunning) {
-                startTimeRef.current = state.startTime;
-                console.log(`[Timer ${timer.id}] Restored startTime:`, state.startTime);
-              } else {
-                startTimeRef.current = null;
-                console.log(`[Timer ${timer.id}] Timer was paused, startTime cleared`);
-              }
-              pausedElapsedRef.current = state.pausedElapsed || 0;
-              durationRef.current = state.duration;
-              setIsStateRestored(true);
-              console.log(`[Timer ${timer.id}] State restoration completed`);
-            } else {
-              // スリープ中に完了した場合、実際の完了時間で記録
-              console.log(`[Timer ${timer.id}] Timer completed while away`);
-              startTimeRef.current = state.startTime;
-              pausedElapsedRef.current = state.pausedElapsed || 0;
-              durationRef.current = state.duration;
-              setDisplayTime(0);
-              setIsRunning(false);
-              
-              // 完了処理を実行（正確な時間で記録される）
-              setTimeout(() => handleComplete(), 100);
-              setIsStateRestored(true);
-            }
-          } else if (timer.type === 'stopwatch') {
-            setDisplayTime(elapsed);
-            // 保存された実行状態を復元
-            console.log(`[Timer ${timer.id}] Restoring stopwatch state:`, state.isRunning);
-            setIsRunning(state.isRunning);
-            if (state.isRunning) {
-              startTimeRef.current = state.startTime;
-              console.log(`[Timer ${timer.id}] Restored startTime:`, state.startTime);
-            } else {
-              startTimeRef.current = null;
-              console.log(`[Timer ${timer.id}] Stopwatch was paused, startTime cleared`);
-            }
-            pausedElapsedRef.current = state.pausedElapsed || 0;
-            setIsStateRestored(true);
-            console.log(`[Timer ${timer.id}] State restoration completed`);
-          } else if (timer.type === 'pomodoro') {
-            const phaseDuration = state.pomodoroPhase === 'work' ? state.workDuration : state.breakDuration;
-            const remaining = Math.max(phaseDuration - elapsed, 0);
-            console.log(`[Timer ${timer.id}] Pomodoro remaining:`, remaining, 'phase:', state.pomodoroPhase);
-            if (remaining > 0) {
-              setDisplayTime(remaining);
-              // 保存された実行状態を復元
-              console.log(`[Timer ${timer.id}] Restoring pomodoro state:`, state.isRunning);
-              setIsRunning(state.isRunning);
-              setPomodoroPhase(state.pomodoroPhase);
-              setCompletedPomodoros(state.completedPomodoros || 0);
-              if (state.isRunning) {
-                startTimeRef.current = state.startTime;
-                console.log(`[Timer ${timer.id}] Restored startTime:`, state.startTime);
-              } else {
-                startTimeRef.current = null;
-                console.log(`[Timer ${timer.id}] Pomodoro was paused, startTime cleared`);
-              }
-              pausedElapsedRef.current = state.pausedElapsed || 0;
-              durationRef.current = phaseDuration;
-              workDurationRef.current = state.workDuration;
-              breakDurationRef.current = state.breakDuration;
-              setIsStateRestored(true);
-              console.log(`[Timer ${timer.id}] State restoration completed`);
-            } else {
-              // スリープ中にポモドーロフェーズが完了した場合の処理
-              console.log(`[Timer ${timer.id}] Pomodoro phase completed while away`);
-              if (state.pomodoroPhase === 'work') {
-                // 作業時間の記録を作成
-                const workStartTime = state.startTime;
-                const actualCompletionTime = workStartTime + (state.workDuration * 1000);
-                const workDuration = state.workDuration; // 秒単位
-                
-                // タイムエントリを自動作成
-                if (onComplete) {
-                  onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: actualCompletionTime });
-                }
-                
-                // 休憩フェーズに移行（ただし休憩時間も過ぎている可能性があるので停止）
-                setPomodoroPhase('break');
-                setCompletedPomodoros(prev => prev + 1);
-                setDisplayTime(0);
-                setIsRunning(false);
-                
-                saveEvent('complete', '作業時間完了');
-                
-              } else {
-                setDisplayTime(0);
-                setIsRunning(false);
-                saveEvent('complete', '休憩時間完了');
-              }
-              setIsStateRestored(true);
-            }
-          }
-        } else {
-          console.log(`[Timer ${timer.id}] No startTime in saved state (paused state restore)`);
-          const pausedElapsed = state.pausedElapsed || 0;
-          if (timer.type === 'countdown') {
-            const duration = state.duration ?? ((timer.duration || 25) * 60);
-            durationRef.current = duration;
-            pausedElapsedRef.current = pausedElapsed;
-            setDisplayTime(Math.max(duration - pausedElapsed, 0));
-            setIsRunning(false);
-            startTimeRef.current = null;
-          } else if (timer.type === 'stopwatch') {
-            pausedElapsedRef.current = pausedElapsed;
-            setDisplayTime(pausedElapsed);
-            setIsRunning(false);
-            startTimeRef.current = null;
-          } else if (timer.type === 'pomodoro') {
-            const workDuration = state.workDuration ?? ((timer.workDuration || 25) * 60);
-            const breakDuration = state.breakDuration ?? ((timer.breakDuration ? timer.breakDuration * 60 : 5 * 60));
-            workDurationRef.current = workDuration;
-            breakDurationRef.current = breakDuration;
-            const phase = state.pomodoroPhase || 'work';
-            setPomodoroPhase(phase);
-            setCompletedPomodoros(state.completedPomodoros || 0);
-            const phaseDur = phase === 'break' ? breakDuration : workDuration;
-            durationRef.current = phaseDur;
-            pausedElapsedRef.current = pausedElapsed;
-            setDisplayTime(Math.max(phaseDur - pausedElapsed, 0));
-            setIsRunning(false);
-            startTimeRef.current = null;
-          }
-          setIsStateRestored(true);
-        }
-      } catch (error) {
-        console.error(`[Timer ${timer.id}] Error restoring timer state:`, error);
-        localStorage.removeItem(`timer_${timer.id}`);
-        setIsStateRestored(true);
-      }
-    } else {
-      console.log(`[Timer ${timer.id}] No saved state found`);
-      setIsStateRestored(true);
-    }
-
-    // 復元処理完了後に現在の設定を記録（リセットを防ぐため）
-    const currentConfig = {
-      type: timer.type,
-      duration: timer.duration,
-      workDuration: timer.workDuration,
-      breakDuration: timer.breakDuration
-    };
-    prevTimerConfig.current = currentConfig;
-  }, [timer.id, timer.type]);
+  useTimerRestore({
+    timerId: timer.id,
+    timerType: timer.type as any,
+    durationSec: timer.type === 'countdown' ? (timer.duration || 25) * 60 : undefined,
+    workDurationSec: timer.type === 'pomodoro' ? (timer.workDuration || 25) * 60 : undefined,
+    breakDurationSec: timer.type === 'pomodoro' ? (timer.breakDuration ? timer.breakDuration * 60 : 5 * 60) : undefined,
+    setDisplayTime,
+    setIsRunning,
+    setPomodoroPhase,
+    setCompletedPomodoros,
+    startTimeRef,
+    pausedElapsedRef,
+    durationRef,
+    workDurationRef,
+    breakDurationRef,
+    loadState,
+    clearState,
+    onRestored: () => setIsStateRestored(true),
+  });
 
   // タイマー設定の初期化
   useEffect(() => {
@@ -385,7 +217,7 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
   const saveTimerState = useCallback(() => {
     const state = {
       isRunning: isRunningRef.current,
-      startTime: startTimeRef.current, // 実行中でなければ null
+      startTime: startTimeRef.current,
       pausedElapsed: pausedElapsedRef.current,
       duration: durationRef.current,
       workDuration: workDurationRef.current,
@@ -394,9 +226,9 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
       completedPomodoros,
       type: timer.type,
       lastUpdate: Date.now()
-    };
-    localStorage.setItem(`timer_${timer.id}`, JSON.stringify(state));
-  }, [pomodoroPhase, completedPomodoros, timer.id, timer.type]);
+    } as const;
+    saveState(state as any);
+  }, [pomodoroPhase, completedPomodoros, timer.type, saveState]);
 
   const saveTimerStateWithOverride = useCallback((overrides?: { isRunning?: boolean; startTime?: number | null }) => {
     const state = {
@@ -424,13 +256,18 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
   }, [isRunning, pomodoroPhase, completedPomodoros, saveTimerState, isStateRestored]);
 
   // ページ離脱時に状態を保存
-  useEffect(() => {
-    const onBeforeUnload = () => {
-      try { saveTimerState(); } catch {}
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [saveTimerState]);
+  useEffect(() => setupBeforeUnload(() => ({
+    isRunning: isRunningRef.current,
+    startTime: startTimeRef.current,
+    pausedElapsed: pausedElapsedRef.current,
+    duration: durationRef.current,
+    workDuration: workDurationRef.current,
+    breakDuration: breakDurationRef.current,
+    pomodoroPhase,
+    completedPomodoros,
+    type: timer.type,
+    lastUpdate: Date.now()
+  })), [setupBeforeUnload, pomodoroPhase, completedPomodoros, timer.type]);
 
   // タイマー完了処理
   const handleComplete = useCallback(() => {
@@ -463,122 +300,73 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     handleReset();
   }, [timer.type, timer.title, timer.enableNotifications, onComplete]);
 
-  // ストップウォッチ用の記録確認ハンドラ
-  const handleRecordClick = () => {
-    if (timer.type !== 'stopwatch') return;
-    if (!isRunning && displayTime === 0) return;
-    if (window.confirm('記録しますか？タイマーはリセットされます。')) {
-      handleComplete();
-    }
-  };
+  const { handleStart, handleStop, handleReset, handleRecordClick } = useTimerControls({
+    timer,
+    setIsRunning,
+    setPomodoroPhase,
+    setCompletedPomodoros,
+    setDisplayTime,
+    onReset,
+    onComplete,
+    startTimeRef,
+    pausedElapsedRef,
+    durationRef,
+    workDurationRef,
+    breakDurationRef,
+    clearState,
+    saveEvent,
+  });
 
   useEffect(() => {
     handleCompleteRef.current = handleComplete;
   }, [handleComplete]);
 
-  // アニメーションループ
-  useEffect(() => {
-    if (!isRunning || !isActive) {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
+  useTimerEngine({
+    isRunning,
+    isActive,
+    timerType: timer.type as any,
+    pomodoroPhase,
+    startTimeRef,
+    pausedElapsedRef,
+    durationRef,
+    workDurationRef,
+    breakDurationRef,
+    lastUpdateTimeRef,
+    animationFrameRef,
+    setDisplayTime,
+    setPomodoroPhase,
+    setCompletedPomodoros,
+    onCountdownZero: () => handleComplete(),
+    onPomodoroWorkZero: (now) => {
+      const workStartTime = startTimeRef.current;
+      const workEndTime = now;
+      const workDuration = Math.floor((workEndTime - (workStartTime || workEndTime)) / 1000);
+      if (onComplete && workStartTime) {
+        onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
       }
-      return;
-    }
-
-    const updateTimer = () => {
-      if (!startTimeRef.current || !isActive) {
-        animationFrameRef.current = null;
-        return;
+      setPomodoroPhase('break');
+      setCompletedPomodoros(prev => prev + 1);
+      pausedElapsedRef.current = 0;
+      startTimeRef.current = now;
+      durationRef.current = breakDurationRef.current;
+      saveEvent('complete', '作業時間完了');
+      if (timer.enableNotifications) {
+        sendNotification({ title: 'ポモドーロ完了！', message: '休憩時間を開始しましょう。' });
       }
-
-      const now = Date.now();
-      const elapsed = Math.floor((now - startTimeRef.current) / 1000) + pausedElapsedRef.current;
-      
-      if (timer.type === 'countdown') {
-        const remaining = Math.max(durationRef.current - elapsed, 0);
-        setDisplayTime(remaining);
-        
-        if (remaining === 0) {
-          handleComplete();
-          return;
-        }
-      } else if (timer.type === 'pomodoro') {
-        if (pomodoroPhase === 'work') {
-          const remaining = Math.max(workDurationRef.current - elapsed, 0);
-          setDisplayTime(remaining);
-          
-          if (remaining === 0) {
-            // ポモドーロ完了 - 作業時間の記録を自動作成
-            const workStartTime = startTimeRef.current;
-            const workEndTime = now;
-            const workDuration = Math.floor((workEndTime - workStartTime) / 1000);
-            
-            // タイムエントリを自動作成
-            if (onComplete && workStartTime) {
-              onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
-            }
-            
-            setPomodoroPhase('break');
-            setCompletedPomodoros(prev => prev + 1);
-            pausedElapsedRef.current = 0;
-            startTimeRef.current = now;
-            durationRef.current = breakDurationRef.current;
-            saveEvent('complete', '作業時間完了');
-            
-            // 通知
-            if (timer.enableNotifications) {
-              sendNotification({
-                title: 'ポモドーロ完了！',
-                message: '休憩時間を開始しましょう。'
-              });
-            }
-          }
-        } else {
-          const remaining = Math.max(breakDurationRef.current - elapsed, 0);
-          setDisplayTime(remaining);
-          
-          if (remaining === 0) {
-            // 休憩完了
-            setPomodoroPhase('work');
-            pausedElapsedRef.current = 0;
-            startTimeRef.current = now;
-            durationRef.current = workDurationRef.current;
-            saveEvent('complete', '休憩時間完了');
-            
-            // 通知
-            if (timer.enableNotifications) {
-              sendNotification({
-                title: '休憩完了！',
-                message: '作業を再開しましょう。'
-              });
-            }
-          }
-        }
-      } else {
-        setDisplayTime(elapsed);
+    },
+    onPomodoroBreakZero: (now) => {
+      setPomodoroPhase('work');
+      pausedElapsedRef.current = 0;
+      startTimeRef.current = now;
+      durationRef.current = workDurationRef.current;
+      saveEvent('complete', '休憩時間完了');
+      if (timer.enableNotifications) {
+        sendNotification({ title: '休憩完了！', message: '作業を再開しましょう。' });
       }
-      
-      lastUpdateTimeRef.current = now;
-      
-      // 状態保存（アクティブな場合のみ）
-      if (isActive && isStateRestored) {
-        saveTimerState();
-      }
-      
-      // 次のフレームをスケジュール
-      animationFrameRef.current = requestAnimationFrame(updateTimer);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(updateTimer);
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-    };
-  }, [isRunning, timer.type, pomodoroPhase, timer.enableNotifications, isActive, handleComplete, saveTimerState]);
+    },
+    shouldSaveState: isActive && isStateRestored,
+    saveTimerState,
+  });
 
   // タイマー開始/停止の制御
   useEffect(() => {
@@ -665,73 +453,16 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isRunning, timer.type, pomodoroPhase]);
 
-  // タイマーイベントをサーバーに保存する関数
-  const saveEvent = async (eventType: 'start' | 'pause' | 'resume' | 'complete' | 'reset' | 'pomodoro_complete' | 'break_complete', note?: string) => {
-    try {
-      const formData = new FormData();
-      formData.append('timerId', timer.id);
-      formData.append('eventType', eventType);
-      formData.append('eventTime', Date.now().toString());
-      formData.append('elapsedSeconds', displayTime.toString());
-      if (note) {
-        formData.append('note', note);
-      }
+  // saveEvent は useTimerEvents から提供
 
-      const result = await saveTimerEvent(formData);
-      if (result?.error) {
-        console.error('Failed to save timer event:', result.error);
-      }
-    } catch (error) {
-      console.error('Error saving timer event:', error);
-    }
-  };
-
-  const handleStart = () => {
-    if (startTimeRef.current === null) {
-      startTimeRef.current = Date.now();
-      saveEvent('start');
-    } else {
-      startTimeRef.current = Date.now();
-      saveEvent('resume');
-    }
-    setIsRunning(true);
-    // すぐに保存して、開始直後のリロードでも復元できるようにする
+  // 直後の保存は引き続きこのコンポーネント側で実施（挙動不変）
+  const startWithSave = () => {
+    handleStart();
     saveTimerStateWithOverride({ isRunning: true, startTime: startTimeRef.current });
   };
-
-  const handleStop = () => {
-    setIsRunning(false);
-    if (startTimeRef.current !== null) {
-      const now = Date.now();
-      const elapsed = Math.floor((now - startTimeRef.current) / 1000);
-      pausedElapsedRef.current += elapsed;
-      startTimeRef.current = null;
-      saveEvent('pause');
-    }
-    // 一時停止状態を保存
+  const stopWithSave = () => {
+    handleStop();
     saveTimerStateWithOverride({ isRunning: false, startTime: null });
-  };
-
-  const handleReset = () => {
-    setIsRunning(false);
-    setPomodoroPhase('work');
-    setCompletedPomodoros(0);
-    pausedElapsedRef.current = 0;
-    if (timer.type === 'countdown') {
-      durationRef.current = (timer.duration || 25) * 60;
-      setDisplayTime(durationRef.current);
-    } else if (timer.type === 'stopwatch') {
-      setDisplayTime(0);
-    } else if (timer.type === 'pomodoro') {
-      workDurationRef.current = (timer.workDuration || 25) * 60;
-      breakDurationRef.current = (timer.breakDuration ? timer.breakDuration * 60 : 5 * 60);
-      durationRef.current = workDurationRef.current;
-      setDisplayTime(workDurationRef.current);
-    }
-    startTimeRef.current = null;
-    localStorage.removeItem(`timer_${timer.id}`);
-    saveEvent('reset');
-    onReset?.();
   };
 
   useImperativeHandle(ref, () => ({ handleReset }));
@@ -776,12 +507,12 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
         <div className="flex justify-center items-center gap-4">
           <PlayButton
             isRunning={isRunning}
-            onStart={handleStart}
-            onStop={handleStop}
+            onStart={startWithSave}
+            onStop={stopWithSave}
           />
           {timer.type === 'stopwatch' && (
             <RecordButton
-              onClick={handleRecordClick}
+              onClick={() => handleRecordClick(isRunning, displayTime)}
               disabled={!isRunning && displayTime === 0}
             />
           )}

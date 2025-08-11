@@ -1,4 +1,4 @@
-import { ErrorBoundary, LoadingState } from "@/components/atoms/feedback";
+import { ErrorBoundary } from "@/components/atoms/feedback";
 import { DailyReportClient } from "./DailyReportClient";
 import { getDailyData } from "@/lib/services/dailyService";
 
@@ -8,11 +8,19 @@ export default async function DailyReportPage() {
   try {
     const { timeEntries, today } = await getDailyData();
 
+    const day = new Intl.DateTimeFormat('ja-JP', { day: 'numeric', timeZone: 'Asia/Tokyo' }).format(today);
+    const monthLabel = new Intl.DateTimeFormat('ja-JP', { month: 'short', timeZone: 'Asia/Tokyo' }).format(today);
+    const weekdayLabel = new Intl.DateTimeFormat('ja-JP', { weekday: 'short', timeZone: 'Asia/Tokyo' }).format(today);
+    const year = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', timeZone: 'Asia/Tokyo' }).format(today);
+
+    const snapshot = { day, monthLabel, weekdayLabel, year };
+
     return (
       <ErrorBoundary>
         <DailyReportClient 
           initialTimeEntries={timeEntries}
           today={today}
+          dateSnapshot={snapshot}
         />
       </ErrorBoundary>
     );
