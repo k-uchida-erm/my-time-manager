@@ -13,6 +13,5 @@ export interface PersistedTimerState {
   type: TimerType;
   lastUpdate: number;
   // legacy support key that may exist in old storage
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
+  [key: string]: boolean | number | string | null | TimerType | PomodoroPhase;
 } 

@@ -12,7 +12,7 @@ export default function PushInit() {
         const reg = await navigator.serviceWorker.register('/sw.js')
 
         // Read VAPID public key from env-exposed runtime config if available
-        const vapidPublicKey = (process as any).env.NEXT_PUBLIC_VAPID_PUBLIC_KEY as string | undefined
+        const vapidPublicKey = (process as { env: { NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string } }).env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
         if (!vapidPublicKey) return
 
         const existing = await reg.pushManager.getSubscription()
