@@ -79,7 +79,7 @@ export function TimerCreationModal({ isOpen, onClose, onSave, onDelete, editingT
       type,
       color,
       hasMemo,
-      enableNotifications,
+      enableNotifications: type === 'stopwatch' ? false : enableNotifications,
       ...(type === 'countdown' && { duration }),
       ...(type === 'pomodoro' && { workDuration, breakDuration }),
     };

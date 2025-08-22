@@ -53,3 +53,13 @@ export async function saveTimerEvent(formData: FormData) {
 export async function getTimerEvents(timerId: string) {
   return getTimerEventsImpl(timerId)
 }
+
+export async function savePushSubscription(formData: FormData) {
+  // TODO: Implement server-side persistence for subscription
+  return { success: true }
+}
+
+export async function sendTimerPush(formData: FormData) {
+  // TODO: Implement server-side web-push send using saved subscriptions
+  return { success: true }
+}

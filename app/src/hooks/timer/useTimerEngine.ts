@@ -181,4 +181,65 @@ export function useTimerEngine(params: UseTimerEngineParams) {
     shouldSaveState,
     saveTimerState,
   ])
+
+  // Schedule a background deadline so zero callbacks fire even when rAF is throttled (background tab)
+  const deadlineTimeoutRef = useRef<number | null>(null)
+  useEffect(() => {
+    // Clear any existing deadline
+    if (deadlineTimeoutRef.current) {
+      clearTimeout(deadlineTimeoutRef.current)
+      deadlineTimeoutRef.current = null
+    }
+
+    if (!isRunning || !isActive) return
+
+    // Stopwatch has no deadline
+    if (timerType === 'stopwatch') return
+
+    const now = Date.now()
+    const elapsed = (startTimeRef.current ? Math.floor((now - startTimeRef.current) / 1000) : 0) + pausedElapsedRef.current
+    let remainingSec = 0
+
+    if (timerType === 'countdown') {
+      remainingSec = Math.max(durationRef.current - elapsed, 0)
+    } else {
+      const phaseDur = pomodoroPhase === 'work' ? workDurationRef.current : breakDurationRef.current
+      remainingSec = Math.max(phaseDur - elapsed, 0)
+    }
+
+    if (remainingSec <= 0) return
+
+    deadlineTimeoutRef.current = window.setTimeout(() => {
+      const fireNow = Date.now()
+      if (timerType === 'countdown') {
+        onCountdownZero()
+      } else {
+        if (pomodoroPhase === 'work') {
+          onPomodoroWorkZero(fireNow)
+        } else {
+          onPomodoroBreakZero(fireNow)
+        }
+      }
+    }, remainingSec * 1000)
+
+    return () => {
+      if (deadlineTimeoutRef.current) {
+        clearTimeout(deadlineTimeoutRef.current)
+        deadlineTimeoutRef.current = null
+      }
+    }
+  }, [
+    isRunning,
+    isActive,
+    timerType,
+    pomodoroPhase,
+    startTimeRef,
+    pausedElapsedRef,
+    durationRef,
+    workDurationRef,
+    breakDurationRef,
+    onCountdownZero,
+    onPomodoroWorkZero,
+    onPomodoroBreakZero,
+  ])
 } 

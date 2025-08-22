@@ -150,25 +150,28 @@ export function TimerModalForm({
       />
 
       <div>
-        <ToggleItem
-          title={
-            <div className="flex items-center gap-2">
-              <span>通知機能</span>
-              <button
-                type="button"
-                onClick={() => setShowNotificationGuide(!showNotificationGuide)}
-                className="text-blue-600 hover:text-blue-700 text-xs font-medium underline"
-              >
-                設定ガイド
-              </button>
-            </div>
-          }
-          description="タイマーが完了した時にブラウザ通知を送信"
-          checked={enableNotifications}
-          onChange={onEnableNotificationsChange}
-        />
-        
-        <NotificationGuide isVisible={showNotificationGuide} />
+        {type !== 'stopwatch' && (
+          <>
+            <ToggleItem
+              title={
+                <div className="flex items-center gap-2">
+                  <span>通知機能</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowNotificationGuide(!showNotificationGuide)}
+                    className="text-blue-600 hover:text-blue-700 text-xs font-medium underline"
+                  >
+                    設定ガイド
+                  </button>
+                </div>
+              }
+              description="タイマーが完了した時にブラウザ通知を送信"
+              checked={enableNotifications}
+              onChange={onEnableNotificationsChange}
+            />
+            <NotificationGuide isVisible={showNotificationGuide} />
+          </>
+        )}
       </div>
 
       {/* 削除セクション - 編集モード時のみ表示 */}

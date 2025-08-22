@@ -342,19 +342,41 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
     onCountdownZero: () => handleComplete(),
     onPomodoroWorkZero: (now) => {
       const workStartTime = startTimeRef.current;
-      const workEndTime = now;
-      const workDuration = Math.floor((workEndTime - (workStartTime || workEndTime)) / 1000);
+      // Scheduled end accounts for pauses during work: start + (paused + workDuration)
+      const scheduledEnd = (workStartTime || now) + (pausedElapsedRef.current + workDurationRef.current) * 1000;
+      const workEndTime = scheduledEnd;
+      const workDuration = workDurationRef.current;
       if (onComplete && workStartTime) {
-        onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
+        onComplete({ durationSeconds: workDuration, startTimeMs: workEndTime - workDuration * 1000, endTimeMs: workEndTime });
       }
       setPomodoroPhase('break');
       setCompletedPomodoros(prev => prev + 1);
       pausedElapsedRef.current = 0;
-      startTimeRef.current = now;
+      startTimeRef.current = workEndTime;
       durationRef.current = breakDurationRef.current;
       saveEvent('complete', '作業時間完了');
       if (timer.enableNotifications) {
         sendNotification({ title: 'ポモドーロ完了！', message: '休憩時間を開始しましょう。' });
+        // Try to show via service worker as well
+        if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'notify',
+            title: 'ポモドーロ完了！',
+            body: '休憩時間を開始しましょう。'
+          })
+        }
+        // Fire server-side push if configured (no-op if not implemented)
+        ;(async () => {
+          try {
+            const fd = new FormData();
+            fd.append('title', 'ポモドーロ完了！');
+            fd.append('message', '休憩時間を開始しましょう。');
+            const mod = await import('@/app/actions');
+            if (typeof mod.sendTimerPush === 'function') {
+              await mod.sendTimerPush(fd);
+            }
+          } catch {}
+        })();
       }
     },
     onPomodoroBreakZero: (now) => {
@@ -441,19 +463,20 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
 
           if (isRunning && remaining === 0) {
             if (pomodoroPhase === 'work') {
-              // 作業完了時は自動記録
+              // 作業完了時は自動記録（スケジュール終端で確定）
               const workStartTime = startTimeRef.current;
-              const workEndTime = now;
-              const workDuration = Math.floor((workEndTime - workStartTime) / 1000);
+              const scheduledEnd = (workStartTime || now) + (pausedElapsedRef.current + workDurationRef.current) * 1000;
+              const workEndTime = scheduledEnd;
+              const workDuration = workDurationRef.current;
 
-              if (onComplete) {
-                onComplete({ durationSeconds: workDuration, startTimeMs: workStartTime, endTimeMs: workEndTime });
+              if (onComplete && workStartTime) {
+                onComplete({ durationSeconds: workDuration, startTimeMs: workEndTime - workDuration * 1000, endTimeMs: workEndTime });
               }
 
               setPomodoroPhase('break');
               setCompletedPomodoros(prev => prev + 1);
               pausedElapsedRef.current = 0;
-              startTimeRef.current = now;
+              startTimeRef.current = workEndTime;
               durationRef.current = breakDurationRef.current;
               saveEvent('complete', '作業時間完了');
 
@@ -462,6 +485,26 @@ export const CustomTimer = forwardRef<CustomTimerHandle, CustomTimerProps>(funct
                   title: 'ポモドーロ完了！',
                   message: '休憩時間を開始しましょう。'
                 });
+                // Try to show via service worker as well
+                if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
+                  navigator.serviceWorker.controller.postMessage({
+                    type: 'notify',
+                    title: 'ポモドーロ完了！',
+                    body: '休憩時間を開始しましょう。'
+                  })
+                }
+                // Fire server-side push if configured (no-op if not implemented)
+                ;(async () => {
+                  try {
+                    const fd = new FormData();
+                    fd.append('title', 'ポモドーロ完了！');
+                    fd.append('message', '休憩時間を開始しましょう。');
+                    const mod = await import('@/app/actions');
+                    if (typeof mod.sendTimerPush === 'function') {
+                      await mod.sendTimerPush(fd);
+                    }
+                  } catch {}
+                })();
               }
             } else {
               // 休憩完了
